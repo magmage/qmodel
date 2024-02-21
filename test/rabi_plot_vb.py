@@ -37,7 +37,7 @@ H0_full = H0_KS + lam*CouplingRabi # Hamiltonian, with coupling
 H = H0_full + j*XOperator + v*SigmaZ # Hamiltonian, with external potential and current
 
 def plot_functionals():
-    sigma_space = np.linspace(-1,1,151)
+    sigma_space = np.linspace(-1,1,201)
     
     E_full = func.EnergyFunctional(H0_full, SigmaZ)
     E_KS = func.EnergyFunctional(H0_KS, SigmaZ)
@@ -84,7 +84,6 @@ def plot_functionals():
 fig,ax = plot_functionals()
 
 fig[0].savefig('Plots/UniversalFunctionalNonInteracting.pdf')
-fig[1].savefig('Plots/UniversalFunctionalNonInteracting.pdf')
-
+fig[1].savefig('Plots/UniversalFunctionalInteracting.pdf')
 plt.show()
 
