@@ -10,8 +10,9 @@ import seaborn as sns
 
 plt.style.use('seaborn-v0_8')
 sns.set(font_scale=1.3)
-#plt.rc('text', usetex=True)                                                     # Setting LaTex fonts and style
-#plt.rc('font', family='serif', size=16)                                         # as well as the desired text size
+plt.rc('text', usetex=True)                                                     # Setting LaTex fonts and style
+plt.rc('font', family='serif', size=16)                                         # as well as the desired text size
+plt.rcParams['axes.facecolor'] = 'none'
 
 colors = sns.color_palette('rocket', as_cmap=True)
 sns.set(font_scale=1.5)
@@ -53,24 +54,24 @@ def plot_functionals():
         F_KS.append(E_KS.legendre_transform(sigma))
         E_c.append(F_full[-1] - F_KS[-1])
     
-    fig1, ax1 = plt.subplots(ncols=1, nrows=1, figsize=(11,7))
+    fig1, ax1 = plt.subplots(ncols=1, nrows=1, figsize=(16,9))
     ax1.set_title(r'Universal functional - Non-interacting system ($\lambda=0$)')
     ax1.set_xlabel(r'$\sigma$')
-    ax1.set_ylabel(r'$\mathcal{F}_\text{LL}(\sigma,0)$')
+    ax1.set_ylabel(r'$\mathcal{F}_{LL}(\sigma,0)$')
 
-    fig2, ax2 = plt.subplots(ncols=1, nrows=1, figsize=(11,7))
+    fig2, ax2 = plt.subplots(ncols=1, nrows=1, figsize=(16,9))
     ax2.set_title(r'Universal functional - Interacting system ($\lambda=1$)')
     ax2.set_xlabel(r'$\sigma$')
-    ax2.set_ylabel(r'$\mathcal{F}_\text{LL}(\sigma,0)$')
+    ax2.set_ylabel(r'$\mathcal{F}_{LL}(\sigma,0)$')
 
     # Plot KS
     ax1.plot(sigma_space, 0.5-t*np.sqrt(1-np.square(sigma_space)), label=r'Analytic Approx')
-    ax1.plot(sigma_space, F_KS, '.', label=r'Numerical')
+    ax1.plot(sigma_space, F_KS, '--', label=r'Numerical')
     
     # Plot fully interacting
     ax2.plot(sigma_space, 0.5-t*np.sqrt(1-np.square(sigma_space)) - np.abs(sigma_space)*(lam**2)/2, label=r'Analytic Approx')
-    ax2.plot(sigma_space, F_full, '.', label=r'Numerical')
-    ax2.plot(sigma_space, F_full_eps, '-.', label=r'$F_\varepsilon^{\lambda=1}(\sigma,0)$' + fr', $\varepsilon={eps}$')
+    ax2.plot(sigma_space, F_full, label=r'Numerical')
+    ax2.plot(sigma_space, F_full_eps, label=r'$F_\varepsilon^{\lambda=1}(\sigma,0)$' + fr', $\varepsilon={eps}$')
     #ax.plot(sigma_space, np.array(E_c), 'r', label=r'$E_c(\sigma,0)$')
 
     ax1.legend()
@@ -81,7 +82,7 @@ def plot_functionals():
 
     return [fig1,fig2], [ax1,ax2]
 
-fig,ax = plot_functionals()
+fig, ax = plot_functionals()
 
 fig[0].savefig('Plots/UniversalFunctionalNonInteracting.pdf')
 fig[1].savefig('Plots/UniversalFunctionalInteracting.pdf')
