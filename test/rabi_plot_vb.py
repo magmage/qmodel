@@ -37,7 +37,7 @@ H0_full = H0_KS + lam*CouplingRabi # Hamiltonian, with coupling
 H = H0_full + j*XOperator + v*SigmaZ # Hamiltonian, with external potential and current
 
 def plot_functionals():
-    sigma_space = np.linspace(-1,1,50)
+    sigma_space = np.linspace(-1,1,151)
     
     E_full = func.EnergyFunctional(H0_full, SigmaZ)
     E_KS = func.EnergyFunctional(H0_KS, SigmaZ)
@@ -53,18 +53,38 @@ def plot_functionals():
         F_KS.append(E_KS.legendre_transform(sigma))
         E_c.append(F_full[-1] - F_KS[-1])
     
-    fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(11,7))
-    fig.suptitle('Universal functional in $\sigma$')
-    ax.plot(sigma_space, F_full, 'b', label=r'$F^\lambda(\sigma,0)$, $\lambda={}$'.format(lam))
-    ax.plot(sigma_space, F_full_eps, 'b--', label=r'$F_\varepsilon^\lambda(\sigma,0)$, $\lambda={}$, $\varepsilon={}$'.format(lam, eps))
-    ax.plot(sigma_space, F_KS, 'g', label=r'$F^0(\sigma,0)$')
-    ax.plot(sigma_space, 0.5-t*np.sqrt(1-np.square(sigma_space)), 'g.', label=r'$\frac{1}{2}-t\sqrt{1-\sigma^2}$')
-    ax.plot(sigma_space, 0.5-t*np.sqrt(1-np.square(sigma_space)) - sigma_space*(lam**2)/2, 'b.', label=r'$\frac{1}{2}-t\sqrt{1-\sigma^2}-\frac{\sigma\lambda^2}{2}$')
-    ax.plot(sigma_space, np.array(E_c), 'r', label=r'$E_c(\sigma,0)$')
-    ax.legend()
-    fig.tight_layout()
-    return fig, ax
+    fig1, ax1 = plt.subplots(ncols=1, nrows=1, figsize=(11,7))
+    ax1.set_title(r'Universal functional - Non-interacting system ($\lambda=0$)')
+    ax1.set_xlabel(r'$\sigma$')
+    ax1.set_ylabel(r'$\mathcal{F}_\text{LL}(\sigma,0)$')
+
+    fig2, ax2 = plt.subplots(ncols=1, nrows=1, figsize=(11,7))
+    ax2.set_title(r'Universal functional - Interacting system ($\lambda=1$)')
+    ax2.set_xlabel(r'$\sigma$')
+    ax2.set_ylabel(r'$\mathcal{F}_\text{LL}(\sigma,0)$')
+
+    # Plot KS
+    ax1.plot(sigma_space, 0.5-t*np.sqrt(1-np.square(sigma_space)), label=r'Analytic Approx')
+    ax1.plot(sigma_space, F_KS, '.', label=r'Numerical')
+    
+    # Plot fully interacting
+    ax2.plot(sigma_space, 0.5-t*np.sqrt(1-np.square(sigma_space)) - np.abs(sigma_space)*(lam**2)/2, label=r'Analytic Approx')
+    ax2.plot(sigma_space, F_full, '.', label=r'Numerical')
+    ax2.plot(sigma_space, F_full_eps, '-.', label=r'$F_\varepsilon^{\lambda=1}(\sigma,0)$' + fr', $\varepsilon={eps}$')
+    #ax.plot(sigma_space, np.array(E_c), 'r', label=r'$E_c(\sigma,0)$')
+
+    ax1.legend()
+    ax2.legend()
+
+    fig1.tight_layout()
+    fig2.tight_layout()
+
+    return [fig1,fig2], [ax1,ax2]
 
 fig,ax = plot_functionals()
+
+fig[0].savefig('Plots/UniversalFunctionalNonInteracting.pdf')
+fig[1].savefig('Plots/UniversalFunctionalNonInteracting.pdf')
+
 plt.show()
 
