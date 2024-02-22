@@ -24,8 +24,8 @@ class Operator(HilbOperator):
         super().__init__(basis)
     
 
-class Hamiltonian(Operator):
-    # pure oscillator Hamiltonian
+class Kinetic(Operator):
+    # kinetic part of oscillator Hamiltonian
     
     def __init__(self, basis: Basis, om = 1):
         self.om = om

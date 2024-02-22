@@ -46,20 +46,22 @@ class EnergyFunctional:
                 'eigvec': eigvec
             }
     
-    @tictoc
+    #@tictoc
     def legendre_transform(self, dens: Union[float, list], epsMY: float = 0):
+        # gives Legendre transform F at dens, also returns potential (density-potential inversion)
         # dens must match dens_operators
         if (isinstance(dens, float) and len(self.dens_operators) > 1) or (isinstance(dens, list) and len(self.dens_operators) == 1):
             raise ValueError('Numbers of density components and density operators in energy functional must agree.')
         # F from E functional
-        def G(v):
-            if len(self.dens_operators) == 1: v = v[0] # just single component
+        def G(pot):
+            if len(self.dens_operators) == 1: pot = pot[0] # just single component
             # already include MY regularization in E functional after Eq. (10) in doi:10.1063/1.5037790
-            return -(self.solve(v)['gs_energy'] - epsMY*np.linalg.norm(v)**2/2 - np.dot(dens, v))
+            return -(self.solve(pot)['gs_energy'] - epsMY*np.linalg.norm(pot)**2/2 - np.dot(pot, dens))
         # perform optimization
         res = minimize(G, [0]*len(self.dens_operators), method='BFGS', options={'disp': False, 'gtol': 1e-5})
         if res['success'] == False: print('Warning! Optimization in Legendre transformation not successful.')
-        return -res['fun']
+        pot = res['x'] if len(res['x']) > 1 else res['x'][0]
+        return {'F': -res['fun'], 'pot': pot}
     
     @tictoc
     def prox(self, dens: Union[float, list], epsMY: float):
@@ -69,8 +71,16 @@ class EnergyFunctional:
             raise ValueError('Numbers of density components and density operators in energy functional must agree.')
         # proximal mapping
         def G(dens2):
-            return epsMY*self.legendre_transform(dens2) + np.linalg.norm(dens - dens2)**2/2
+            return epsMY*self.legendre_transform(dens2)['F'] + np.linalg.norm(dens - dens2)**2/2
         # perform optimization
         res = minimize(G, dens, method='BFGS', options={'disp': False, 'gtol': 1e-5})
         if res['success'] == False: print('Warning! Optimization in proximal mapping not successful.')
         return res['x'] if len(res['x']) > 1 else res['x'][0]
+
+def np_map(func, xiter):
+    return np.array(list(map(func, xiter))) # map a function on iterator and return nparray
+    
+def moreau_envelope(xspan, func, epsMY: float):
+    # on 1d nparray xspan with function evaluated by func(x) at each x
+    # xspan has to be symmetric around 0
+    return np_map( lambda x : min(np_map(func, xspan) + (xspan-x)**2/(2*epsMY)), xspan )

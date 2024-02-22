@@ -46,8 +46,8 @@ class SigmaZ(Operator):
 class SigmaVec(OperatorList):
     def __init__(self, basis: Basis):
         super().__init__(basis, [SigmaX(basis), SigmaY(basis), SigmaZ(basis)])
-
-
+        
+        
 class SigmaPlus(Operator):
     def create(self):
         self.matrix[0, 1] = 1
@@ -56,3 +56,13 @@ class SigmaPlus(Operator):
 class SigmaMinus(Operator):
     def create(self):
         self.matrix[1, 0] = 1
+
+
+class ProjPlus(Operator):
+    def create(self):
+        self.matrix[0, 0] = 1
+
+
+class ProjMinus(Operator):
+    def create(self):
+        self.matrix[1, 1] = 1
