@@ -296,6 +296,22 @@ class Operator:
         B = Operator(self.basis)
         B.matrix = self.matrix.transpose().conj()
         return B
+    
+    def comm(self, A):
+        if isinstance(A, Operator):
+            # must have same basis and size
+            self.__test_basis(A)
+            return self*A - A*self
+        else:
+            raise TypeError('Type error in commutator.')
+        
+    def acomm(self, A):
+        if isinstance(A, Operator):
+            # must have same basis and size
+            self.__test_basis(A)
+            return self*A + A*self
+        else:
+            raise TypeError('Type error in anticommutator.')
         
     def extend(self, ext_basis: Basis): # directly extend / return self reference
         # extend to a larger basis in tensor space (block form)

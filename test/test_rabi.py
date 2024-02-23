@@ -12,7 +12,7 @@ t = 1
 lam = 1
 j = 0
 v = 0
-oscillator_size = 50
+oscillator_size = 10
 
 ## Rabi model in 2nd quantization basis
 OB = oscillator.Basis(oscillator_size)
@@ -125,8 +125,8 @@ def plot_functionals_in_sigma():
     sigma_space = np.linspace(-1,1,51)
     
     lam = 1
-    x = 0.5
-    eps = 0.1
+    x = 0
+    eps = 0
     
     E_full = func.EnergyFunctional(H0_Rabi_KS + lam*CouplingRabi, [SigmaZ, XOperator])
     E_KS = func.EnergyFunctional(H0_Rabi_KS, [SigmaZ, XOperator])
@@ -175,7 +175,7 @@ def plot_functionals_in_sigma():
     #approx = lambda sigma: 0.5-t*sqrt(1-sigma**2)+lam*x*sigma+x**2/2-abs(sigma)*(lam**2)/2
     #ax.plot(sigma_space, list(map(approx, sigma_space)), 'b', label=r'$\frac{1}{2}-t\sqrt{1-\sigma^2}+\lambda\sigma\xi+\frac{1}{2}\xi^2-\frac{|\sigma|\lambda^2}{2}$')
     #ax.plot(sigma_space, func.moreau_envelope(sigma_space, approx, eps), 'b--', label=r'MY')
-    ax.plot(sigma_space, E_xc, 'r', label=r'$E_{xc}(\sigma,\xi)$')
+    ax.plot(sigma_space, E_xc, 'r', label=r'$E_{\rm mf+c}(\sigma,\xi)$')
     ax.plot(sigma_space, test_F_full, 'b.')
     ax.plot(sigma_space, test_F_KS, 'g.')
     ax.plot(sigma_space, W_0, 'k--', label=r'$\lambda W^0(\sigma,\xi)$')
@@ -233,7 +233,7 @@ def plot_functionals_in_lambda():
     ax.plot(lam_space, F_full, 'b', label=r'$F^\lambda(\sigma,\xi)$')
     ax.plot(lam_space, F_full_eps, 'b--', label=r'$F_\varepsilon^\lambda(\sigma,\xi)$, $\varepsilon={}$'.format(eps))
     ax.plot(lam_space, F_KS, 'g', label=r'$F^0(\sigma,\xi)$')
-    ax.plot(lam_space, E_xc, 'r', label=r'$E^\lambda_{xc}(\sigma,\xi)$')
+    ax.plot(lam_space, E_xc, 'r', label=r'$E_{\rm mf+c}^\lambda(\sigma,\xi)$')
     ax.plot(lam_space, test_F_full, 'b.')
     ax.plot(lam_space, W_0, 'k--', label=r'$\lambda W^0(\sigma,\xi)$')
     ax.plot(lam_space, W_c, 'c--', label=r'$\lambda W^\lambda_c(\sigma,\xi)$')
@@ -286,3 +286,22 @@ def plot_in_lambda(model: str): # model = Rabi | JC
     
     plt.show()
     
+def test_proposition(): # test the Prop. on FLL-properties
+    # get some solution
+    sigma = -0.8
+    x = 0
+    E_full = func.EnergyFunctional(H0_Rabi_full, [SigmaZ, XOperator])
+    pot = E_full.legendre_transform([sigma, x])['pot'] # invert to potential
+    Psi0 = E_full.solve(pot)['gs_vector']
+    sigma_expval = SigmaZ.expval(Psi0, check_real = True)
+    x_expval = XOperator.expval(Psi0, check_real = True)
+    print('sigma_z expectation value = {}'.format(sigma_expval))
+    print('x expectation value = {}'.format(x_expval))
+    check_sigma_x(lam, sigma_expval, x_expval, pot[1])
+    xplus = (ProjPlus*XOperator*ProjPlus).expval(Psi0)
+    xminus = (ProjMinus*XOperator*ProjMinus).expval(Psi0)
+    # (iv) must have x=0
+    print( 1/2*(dXOperator**2 + XOperator**2).expval(Psi0) + lam*xplus)
+    # (v) new form
+    print( xplus - xminus - sigma*x + lam*(1-sigma**2) \
+           + 4*t*(ProjMinus*SigmaX*dXOperator*ProjPlus).expval(Psi0) )
