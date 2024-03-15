@@ -115,10 +115,6 @@ class Basis:
             B.extend(key, self.qn_ranges[key])
         return B
 
-    def list(self):
-        for e in self.el:
-            print(e.index, '->', e.qn)
-        
     def find_el(self, qn: dict):
         # find all elements that fit qn
         # could be subset of qn
@@ -140,19 +136,25 @@ class Basis:
                 e.qn[to] = e.qn[fr]
                 del e.qn[fr]
 
+    def __str__(self):
+        out = ''
+        for e in self.el:
+            out += str(e.index) + ' -> ' + str(e.qn) + '\n'
+        return out
+            
             
 class Vector:
     # vector in a given basis
-    def __init__(self, basis: Basis, col = None):
-        # check if size of array and basis match
-        if col.shape != (basis.dim,):
-            raise ValueError('Vector shape does not match basis dimension.')
-        
+    def __init__(self, basis: Basis, col = None): ## todo: init from basis element
         self.basis = basis
         if col is None:
             self.col = np.zeros(basis.dim, dtype=np.complex_)
         else:
-            self.col = np.array(col)
+            # check if size of array and basis match
+            col = np.array(col)
+            if col.shape != (basis.dim,):
+                raise ValueError('Vector shape does not match basis dimension.')
+            self.col = col
         
     def prob(self):
         # give |psi|^2 for all basis elements
@@ -184,9 +186,9 @@ class Vector:
         # just show column
         return str(self.col)
 
+
 class Operator:
     # matrix w.r.t to basis
-    # allow basis change?
     
     def __init__(self, basis: Basis):
         self.basis = basis        
