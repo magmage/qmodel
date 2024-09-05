@@ -52,6 +52,6 @@ for lam in lam_arr:
     H1 = H + lam*Sx
     E = H1.eig(hermitian = True)
     gs_vector = E['eigenvectors'][0]
-    Sx_exp_arr.append(Sx.expval(gs_vector).real)
+    Sx_exp_arr.append(Sx.expval(gs_vector, transform_real=True))
 plt.plot(lam_arr, Sx_exp_arr)
 plt.show()
