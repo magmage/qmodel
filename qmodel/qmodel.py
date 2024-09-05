@@ -805,6 +805,3 @@ class OperatorList: # list of operators
     
     def __len__(self):
         return len(self.operators)
-
-b = Basis('i', range(3))
-print(b.hop({'i':1,'j':1}))
