@@ -11,8 +11,8 @@ import numpy as np
 
 # compare F for dimer to https://arxiv.org/pdf/2303.15084
 
-M = 3
-N = 3
+M = 3 # lattice sites
+N = 3 # particles
 b_lattice = LatticeBasis(M)
 b_spin = SpinBasis()
 print(b_spin)
