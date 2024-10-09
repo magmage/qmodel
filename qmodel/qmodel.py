@@ -2,10 +2,11 @@
 qmodel - library for Hilbert space objects and simple quantum models
 (CC0) Markus Penz
 created on 01.08.2024
-new version 0.2.0 for supporting nested tensor products
 
-future idea: Fock space by just adding basis elements (direct sum)
-must adapt creation/annihilation
+version 0.2.0 for supporting nested tensor products
+version 0.2.1
+
+compare libs: SymPsi, OpenFermion
 '''
 
 import itertools
@@ -14,21 +15,22 @@ import numbers
 from math import sqrt
 from typing import Callable, Union, Iterable
 from copy import copy
+from scipy.linalg.lapack import cggev
 
 # constants
 DEGENERACY_ACCURACY = 1e-10
 IMAG_PART_ACCURACY = 1e-14
-HERMITICITY_ACCURACY = 1e-14
+HERMITICITY_ACCURACY = 1e-6 # absolute tolerance in allclose, also use for diagonal matrix (cannot be that accurate for simultaneous diagonalization)
 
 # classes
 class Basis:
     # Hilbert space basis
     # basis elements are dicts that contain quantum numbers (qn)
 
-    def __init__(self, qn_key: str = None, qn_range: Iterable[float]|None = None):
+    def __init__(self, qn_key: str = None, qn_range: Iterable[int|float]|None = None):
         self.dim = 0
         self.qn_keys = set()
-        self.part_num = 1 # components in tuple elements
+        self.part_num = 0 # components in tuple elements
         self.part_basis = self # component basis
         self.symmetry = None # None | 'x' | 's' | 'a'
         # symmetry = None has el = list of dicts {'qn_key1': qn1, 'qn_key2': qn2}
@@ -38,15 +40,19 @@ class Basis:
         # can be initialized as a primitive basis with a single qn (string) and its range (list of numbers)
         if not qn_key is None and not qn_range is None:
             if not isinstance(qn_key, str): raise TypeError('The qn key must be string valued.')
+            self.part_num = 1
             self.qn_keys = {qn_key}
             if isinstance(qn_range, Iterable):
                 self.dim = len(qn_range)
                 for q in qn_range:
-                    self.el.append( {qn_key: q} )
+                    if isinstance(q, int) or isinstance(q, float):
+                        self.el.append( {qn_key: q} )
+                    else:
+                        raise TypeError('The qn range must be an integer or float valued iterable.')
             else:
-                raise TypeError('The qn range must be a float valued iterable.')
+                raise TypeError('The qn range must be an integer or float valued iterable.')
             
-    def __str__(self):
+    def __str__(self) -> str:
         out = 'Basis: dim = {}, part num = {}, symmetry = {}, qn keys = {}\n'.format(self.dim, self.part_num, self.symmetry, self.qn_keys)
         out += 'Basis elements:\n'
         for e in self.el: ## or loop component bases
@@ -179,7 +185,7 @@ class Basis:
             
         return found
     
-    def sum(self, func: Callable):
+    def sum(self, func: Callable) -> float:
         # iterate all basis elements e and sum over return value of func(e)
         # could sum over operators or vectors
         re = None
@@ -308,27 +314,29 @@ class LatticeBasis(Basis): # always single-particle
             out_op -= self.graph_pot(deg, qn_key)
         return out_op
 
-    ## must be on many-particle basis
-    ## def fermion_graph_interaction(self, interaction_pot: dict, qn_key='i') -> 'Operator':
-    
-    def graph_pot(self, pot: dict, qn_key: str = 'i') -> 'Operator':
+    def graph_pot(self, pot: dict|list|np.ndarray, qn_key: str = 'i') -> 'Operator':
         # v_i * a_i^dag a_i
-        # pot = {1: 1, 2: -1, 3: 0}
+        # pot = {1: 1, 2: -1, 3: 0} or [1,-1,0]
         # w.r.t. given qn_key
         if not qn_key in self.qn_keys: raise ValueError('Quantum number is not a part of the basis.')
+        if not isinstance(pot, dict) and not isinstance(pot, list) and not isinstance(pot, np.ndarray):
+            raise TypeError('Potential must be of dict, list or NumPy ndarray type.')
         # create Operator
         out_op = Operator(self)
         for e in self.part_basis.el:
-            if e[qn_key] in pot:
+            if isinstance(pot, dict) and e[qn_key] in pot:
                 out_op += pot[e[qn_key]] * self.hop(e)
+            elif (isinstance(pot, list) or isinstance(pot, np.ndarray)) and e[qn_key] <= len(pot):
+                out_op += pot[e[qn_key]-1] * self.hop(e)
         return out_op
 
 class VacuumBasis(Basis): # just C space
-    def __init__(self):
-        super().__init__( qn_key='vac', qn_range=range(0, 1) )
+    def __init__(self, qn_key: str = 'vac'):
+        super().__init__( qn_key=qn_key, qn_range=range(0, 1) )
         
 class NumberBasis(Basis): # for single state boson Fock space
-    def __init__(self, max_num = 2, qn_key = 'n'):
+    def __init__(self, max_num: int, qn_key: str = 'n'):
+        if int(max_num)!=max_num or max_num <= 0: raise ValueError('Maximal number must be positive and integer valued.')
         super().__init__( qn_key=qn_key, qn_range=range(0, max_num) )
         
     def creator(self) -> 'Operator':
@@ -353,7 +361,7 @@ class NumberBasis(Basis): # for single state boson Fock space
         return (-self.creator() + self.annihilator()) / sqrt(2)
 
 class SpinBasis(Basis): # always single-particle
-    def __init__(self, qn_key = 's'):
+    def __init__(self, qn_key: str = 's'):
         super().__init__( qn_key=qn_key, qn_range=(+1,-1))
         
     def sigma_x(self) -> 'Operator':
@@ -400,7 +408,7 @@ class SpinBasis(Basis): # always single-particle
         
 class Vector:
     # vector in a given basis
-    def __init__(self, basis: Basis, col = None): # can be initialized with column
+    def __init__(self, basis: Basis, col: list|np.ndarray = None): # can be initialized with column
         self.basis = basis
         if col is None:
             self.col = np.zeros(basis.dim, dtype=np.complex_)
@@ -410,16 +418,53 @@ class Vector:
             if col.shape != (basis.dim,):
                 raise ValueError('Vector shape does not match basis dimension.')
             self.col = col
+
+    def copy(self) -> 'Vector':
+        # return a copy of itself
+        X = Vector(self.basis)
+        X.col = self.col.copy()
+        return X
+
+    def _test_basis(self, X): # private method for basis comparison / use name as 'forward reference'
+        if self.basis != X.basis:
+            raise TypeError('The bases do not match between the vectors.')
         
-    def prob(self):
-        # print |psi|^2 for all basis elements
-        for index,e in enumerate(self.basis.el):
-            print(str(e) + ' -> ' + str(abs(self.col[index])**2))
-            
-    def norm(self): # 2-norm of vector
+    def __mul__(self, a):
+        # mul operator, return new object X = self * a
+        if isinstance(a, numbers.Number):
+            X = Vector(self.basis)
+            X.col = a*self.col
+        else:
+            raise TypeError('Type error in multiplication.')
+
+        return X
+    
+    def __rmul__(self, a):
+        # mul operator, return new object X = a * self
+        # commutative in all cases
+        # Operator * Vector in handled in Operator class
+        X = self.__mul__(a)
+
+        return X
+    
+    def inner(self, X) -> complex:
+        # inner product with second vector where self gets complex conjugated
+        if not isinstance(X, Vector):
+            raise TypeError('Inner product is only allowed with another vector.')
+        self._test_basis(X)
+        return np.dot(self.col.conj(), X.col)
+
+    def prob(self) -> np.ndarray:
+        # return |psi|^2 for all basis elements
+        prob = np.zeros(self.basis.dim)
+        for index,_ in enumerate(self.basis.el):
+            prob[index] = abs(self.col[index])**2
+        return prob
+    
+    def norm(self) -> float: # 2-norm of vector
         return np.linalg.norm(self.col, ord=2)
             
-    def trace(self, subbasis: Basis):
+    def trace(self, subbasis: Basis) -> np.ndarray:
         # trace out all basis elements except of subbasis and give sum abs-square
         # subbasis must be a primitive basis with only dict elements
         if subbasis.symmetry is not None: raise ValueError('This method only works on primitive bases.')
@@ -428,7 +473,7 @@ class Vector:
             prob[index] = self.basis.hop(e).expval(self, transform_real=True)
         return prob
 
-    def __str__(self):
+    def __str__(self) -> str:
         out = 'Vector: dim = {}\n'.format(self.basis.dim)
         # and just show column
         return out + str(self.col)
@@ -437,6 +482,9 @@ class Operator:
     # matrix w.r.t to basis
     
     def __init__(self, basis: Basis):
+        if not isinstance(basis, Basis):
+            raise TypeError('Operator must be initialized with a basis.')
+        
         self.basis = basis        
         # init zero matrix and create
         self.matrix = np.zeros((self.basis.dim, self.basis.dim), dtype=np.complex_)
@@ -449,7 +497,7 @@ class Operator:
 
     def _test_basis(self, A): # private method for basis comparison / use name as 'forward reference'
         if self.basis != A.basis:
-            raise TypeError('The bases do not match between the operators to be added.')
+            raise TypeError('The bases do not match between the operators.')
     
     def __neg__(self):
         # negation, return new object B = -A
@@ -501,7 +549,10 @@ class Operator:
             # return OperatorList
             B_vec = OperatorList(self.basis)
             for a in A:
-                B_vec.operators.append(self * a)
+                if isinstance(a, numbers.Number):
+                    B_vec.operators.append(self * a)
+                else:
+                    raise TypeError('Type error in multiplication with a list.')
             return B_vec
         else:
             raise TypeError('Type error in multiplication.')
@@ -523,7 +574,7 @@ class Operator:
         
     def __truediv__(self, a):
         if not isinstance(a, numbers.Number):
-            raise TypeError('Number type expected in multiplication from left.')
+            raise TypeError('Number type expected in division.')
         B = Operator(self.basis)
         B.matrix = self.matrix/a
         return B
@@ -535,48 +586,43 @@ class Operator:
         B.matrix = np.linalg.matrix_power(self.matrix, a)
         return B
     
-    def conj(self): # conjugate
+    def conj(self) -> 'Operator': # conjugate
         B = Operator(self.basis)
         B.matrix = self.matrix.conj()
         return B
     
-    def T(self): # transpose
+    def T(self) -> 'Operator': # transpose
         B = Operator(self.basis)
         B.matrix = self.matrix.transpose()
         return B
     
-    def adj(self): # adjoint
+    def adj(self) -> 'Operator': # adjoint
         B = Operator(self.basis)
         B.matrix = self.matrix.transpose().conj()
         return B
     
-    def add_adj(self): # add adjoint (h.c.) to operator itself
+    def add_adj(self) -> 'Operator': # add adjoint (h.c.) to operator itself
         B = Operator(self.basis)
         B.matrix = self.matrix + self.matrix.transpose().conj()
         return B
     
-    def norm(self): # 2-norm of operator
-        return np.linalg.norm(self.matrix, ord=2)
-    
-    def comm(self, A):
+    def comm(self, A: 'Operator') -> 'Operator':
         if isinstance(A, Operator):
-            # must have same basis and size
-            self._test_basis(A)
+            # must have same basis and size (tested in mul anyway)
             return self*A - A*self
         else:
             raise TypeError('Type error in commutator.')
         
-    def acomm(self, A):
+    def acomm(self, A: 'Operator') -> 'Operator':
         if isinstance(A, Operator):
-            # must have same basis and size
-            self._test_basis(A)
+            # must have same basis and size (tested in mul anyway)
             return self*A + A*self
         else:
             raise TypeError('Type error in anticommutator.')
     
-    def expval(self, vec: Vector, check_real = False, transform_real = False):
+    def expval(self, vec: Vector, check_real: bool = False, transform_real: bool = False) -> float|complex:
         if self.basis != vec.basis:
-            raise TypeError('The bases do not match between the operators to be added.')
+            raise TypeError('The bases do not match between operator and vector.')
         
         val = np.dot(vec.col.conjugate(), np.dot(self.matrix, vec.col))
         if check_real and abs(val.imag) > IMAG_PART_ACCURACY:
@@ -587,9 +633,12 @@ class Operator:
             
         return val
 
-    def eig(self, hermitian = False):
+    def norm(self) -> float: # 2-norm of operator
+        return np.linalg.norm(self.matrix, ord=2)
+    
+    def eig(self, hermitian: bool = False) -> dict:
         # solve for eigensystem
-        if hermitian: # save with operator ?
+        if hermitian: # trust the input, is not checked
             res = np.linalg.eigh(self.matrix) # eigenvalues ordered, lowest first
             # count degeneracy in order of eigenvalues
             deg = []
@@ -612,11 +661,20 @@ class Operator:
         
     def test_hermiticity(self):
         # test if it is really hermitian conjugate
-        err = np.linalg.norm(self.matrix - self.matrix.conj().T)
-        if err > HERMITICITY_ACCURACY:
-            print('Hermiticity error: {:.1E}'.format(err))
+        if not np.allclose(self.matrix, self.matrix.conj().T, 0, HERMITICITY_ACCURACY):
+            raise ValueError('Operator is not hermitian (self-adjoint).')
 
-    def extend(self, ext_basis: Basis): # returns new instance
+    def diag(self) -> dict:
+        # test if hermitian
+        self.test_hermiticity()
+        
+        # solve for eigensystem
+        res = np.linalg.eigh(self.matrix)
+        d = res[0] # diagonal of matrix U.conj().T @ A @ U
+        U = res[1] # eigenvectors
+        return {'diag': d, 'transform': U.conj().T} # return numpy matrices, not Operators, because they are wrt to another basis 
+
+    def extend(self, ext_basis: Basis) -> 'Operator':
         # extend to a larger basis in tensor space (block form)
         if not isinstance(ext_basis, Basis): raise TypeError('Argument must be of type Basis.')
         # qn keys have to match
@@ -627,7 +685,7 @@ class Operator:
         
         for index1,qn1 in enumerate(self.basis.part_basis.el):
             for index2,qn2 in enumerate(self.basis.part_basis.el):
-                if self.matrix[index1, index2] != 0: # optimize
+                if self.matrix[index1, index2] != 0:
                     out_op += ext_basis.hop(qn1, qn2) * self.matrix[index1, index2]
                         
         return out_op
@@ -636,6 +694,8 @@ class Operator:
         # tensor basis, can also be provided to allow creation of tensorized operators on same basis 
         if tensor_basis is None:
             tensor_basis = self.basis.tensor(A.basis)
+        elif not isinstance(tensor_basis, Basis):
+            raise TypeError('Second (optional) argument must be of type Basis.')
             
         if isinstance(A, Operator):
             # new Operator
@@ -659,24 +719,39 @@ class Operator:
         return 1
 
 class OperatorList: # list of operators
-    def __init__(self, basis: Basis, operators = None): # do NOT use empty list as default! causes unwanted default value
+    def __init__(self, basis: Basis, operators: list|None = None): # do NOT use empty list as default! causes unwanted default value
+        if not isinstance(basis, Basis):
+            raise TypeError('OperatorList must be initialized with a basis.')
+        if operators is not None and (type(operators) is not list or not all(isinstance(A, Operator) for A in operators)):
+            raise TypeError('If the OperatorList is initialized with operators, those need to be a list of Operator-type objects.')
+        
         self.basis = basis
         if operators is None: operators = [] # init with empty list
         self.operators = operators # init with arg
-        ## check basis
 
-    def append(self, operators):
+    def __getitem__(self, index) -> Operator: # make subscriptable
+        if not isinstance(index, int):
+            raise ValueError('Index must be integer.')
+        if index < 0 or index >= len(self.operators):
+            raise ValueError('Index is out of range.')
+        return self.operators[index]
+    
+    def append(self, operators: Operator|list):
         # append one or multiple operators
+        # careful, this does not create a new instance
         if isinstance(operators, list):
             for op in operators:
                 self.append(op) # recursive call
         elif isinstance(operators, Operator):
-            self.operators.append(operators.copy()) # always make copy, not only reference
+            # test is same basis
+            if self.basis != operators.basis:
+                raise ValueError("Appended operators must have the same basis as OperatorList.")
+    
+            self.operators.append(operators)
         else:
             raise ValueError('Type for append must be list or Operator.')
-        ## check basis
 
-    def copy(self):
+    def copy(self) -> 'OperatorList':
         # return a copy of itself
         A = OperatorList(self.basis)
         for op in self.operators:
@@ -734,6 +809,7 @@ class OperatorList: # list of operators
 
         return B
     
+    __array_priority__ = 10000 # use __rmul__ instead of NumPy's __mul__
     def __rmul__(self, A):
         return self.__mul__(A) # is commutative
         
@@ -745,37 +821,71 @@ class OperatorList: # list of operators
             B.append(op/a)
         return self
     
-    def conj(self): # conjugate
+    def conj(self) -> 'OperatorList': # conjugate
         B = OperatorList(self.basis)
         for op in self.operators:
             B.append(op.conj())
         return B
     
-    def T(self): # transpose
+    def T(self) -> 'OperatorList': # transpose
         B = OperatorList(self.basis)
         for op in self.operators:
             B.append(op.T())
         return B
 
-    def adj(self): # adjoint
+    def adj(self) -> 'OperatorList': # adjoint
         B = OperatorList(self.basis)
         for op in self.operators:
             B.append(op.adj())
         return B
+    
+    def expval(self, vec: Vector, check_real = False, transform_real = False) -> float|complex:
+        out = []
+        for op in self.operators:
+            out.append(op.expval(vec, check_real, transform_real))
+        return np.array(out) # make it np array so one can add etc.
 
-    def norm(self): # 2-norm of operator list
+    def norm(self) -> float: # 2-norm of operator list
         out = 0 
         for op in self.operators:
             out += op.norm()**2
         return sqrt(out)
     
-    def expval(self, vec: Vector, check_real = False, transform_real = False):
-        out = []
-        for op in self.operators:
-            out.append(op.expval(vec, check_real, transform_real))
-        return np.array(out) # make it np array so one can add etc.
+    def sum(self) -> Operator: # sum and return Operator
+        B = Operator(self.basis)
+        B.matrix = np.sum([A.matrix for A in self.operators], axis=0)
+        return B
     
-    def extend(self, ext_basis: Basis): # return new instance
+    def diag(self, trials: int = 5) -> dict:
+        # simultaneous diagonalization of hermitian matrices
+        # returns diagonals and transformation matrix
+        # inspired by randomized simultaneous diagonalization by congruence method
+        # https://arxiv.org/html/2402.16557v1
+        # https://github.com/haoze12345/rsdc/blob/main/rnojd.py
+        for t in range(trials):
+            w = np.random.normal(0,1,len(self))
+            A1 = w*self # inner product
+            A2 = self.sum()
+            # use simultaneous diagonalization from LAPACK
+            _, _, _, X, _, _ = cggev(A1.matrix,A2.matrix)
+            Ua = X / np.linalg.norm(X,axis=0)
+            U = Ua.conj().T
+            # diagonalize all operators
+            out = []
+            for op in self.operators:
+                M = U @ op.matrix @ Ua
+                d = np.diag(M).real
+                out.append(d)
+                # test diag
+                all_diag = True
+                if not np.allclose(M, np.diag(d), 0, HERMITICITY_ACCURACY): # make it matrix again for comparison
+                    all_diag = False
+            if all_diag:
+                return {'diag': out, 'transform': U} # return numpy matrices not Operators because is wrt to different basis
+        if t+1==trials:
+            raise ValueError('Operators could not be diagonalized simultaneously, maybe some are non-hermitian or they do not mutually commute.')
+                            
+    def extend(self, ext_basis: Basis) -> 'OperatorList':
         out_op_list = OperatorList(ext_basis)
         for op in self.operators:
             out_op_list.append(op.extend(ext_basis))
@@ -805,3 +915,4 @@ class OperatorList: # list of operators
     
     def __len__(self):
         return len(self.operators)
+

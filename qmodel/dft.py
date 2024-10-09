@@ -26,11 +26,11 @@ class EnergyFunctional:
     def solve(self, pot: Union[float, list]):
         H = self.H0 + self.dens_operators*pot
         sol = H.eig(hermitian = True)
-        return {
+        return {**sol, **{
                 'gs_energy': sol['eigenvalues'][0],
                 'gs_vector': sol['eigenvectors'][0],
                 'gs_degeneracy': sol['degeneracy'][0]
-            }
+            }} # merge with solution dict
     
     #@timer
     def legendre_transform(self, dens: Union[float, list], epsMY: float = 0, verbose = False):
