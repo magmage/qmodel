@@ -29,3 +29,9 @@ To uninstall, run
 pip uninstall qmodel
 ```
 You may need to be in another directory than this one for the command to work.
+
+To update after a new version has been 'released', pull the changes to your
+local clone of the repository and run
+```sh
+pip install . --upgrade
+```
