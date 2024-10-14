@@ -198,7 +198,7 @@ class Basis:
     
     def id(self) -> 'Operator': # identity operator
         out_op = Operator(self)
-        out_op.matrix = np.identity(self.dim, dtype=np.complex_)
+        out_op.matrix = np.identity(self.dim, dtype=np.complex128)
         return out_op
     
     def diag(self, qn_key: str|None = None) -> 'Operator': # diagonal qn operator
@@ -345,7 +345,7 @@ class NumberBasis(Basis): # for single state boson Fock space
         if self.dim > 1:
             out_op.matrix = np.diag(np.sqrt(range(1,self.dim)), -1)
         else:
-            out_op.matrix = np.identity(1, dtype=np.complex_)
+            out_op.matrix = np.identity(1, dtype=np.complex128)
         return out_op
 
     def annihilator(self) -> 'Operator':
@@ -411,7 +411,7 @@ class Vector:
     def __init__(self, basis: Basis, col: list|np.ndarray = None): # can be initialized with column
         self.basis = basis
         if col is None:
-            self.col = np.zeros(basis.dim, dtype=np.complex_)
+            self.col = np.zeros(basis.dim, dtype=np.complex128)
         else:
             # check if size of array and basis match
             col = np.array(col)
@@ -487,7 +487,7 @@ class Operator:
         
         self.basis = basis        
         # init zero matrix and create
-        self.matrix = np.zeros((self.basis.dim, self.basis.dim), dtype=np.complex_)
+        self.matrix = np.zeros((self.basis.dim, self.basis.dim), dtype=np.complex128)
 
     def copy(self) -> 'Operator':
         # return a copy of itself
@@ -514,7 +514,7 @@ class Operator:
             self._test_basis(A)
             B.matrix = np.add(self.matrix, A.matrix)         
         elif isinstance(A, numbers.Number):
-            B.matrix = self.matrix + A*np.identity(self.basis.dim, dtype=np.complex_)
+            B.matrix = self.matrix + A*np.identity(self.basis.dim, dtype=np.complex128)
         else:
             raise TypeError('Type error in addition.')
         
