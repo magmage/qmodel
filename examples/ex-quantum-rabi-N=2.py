@@ -6,11 +6,13 @@ Created on 10.08.2024
 Dicke model example
 M = 1, N = 2
 '''
-from qmodel import *
-from dft import *
+import itertools
+
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
+from matplotlib import animation
 import numpy as np
+
+from qmodel import NumberBasis, SpinBasis, EnergyFunctional
 
 oscillator_size = 10
 b_oscillator = NumberBasis(oscillator_size)
@@ -36,7 +38,7 @@ v_space = np.linspace(-v_max,v_max,v_num)
 E_arr = np.zeros((v_num, v_num))
 N_arr = np.zeros((v_num, v_num))
 
-fig, ax = plt.subplots(1,2) 
+fig, ax = plt.subplots(1,2)
 E_heatmap = ax[0].imshow(E_arr, cmap='hot', interpolation='none', extent=[-v_max,v_max,-v_max,v_max])
 N_heatmap = ax[1].imshow(N_arr, cmap='Blues', interpolation='none', extent=[-v_max,v_max,-v_max,v_max])
 #E_heatmap.set_clim(vmin=-20, vmax=0)

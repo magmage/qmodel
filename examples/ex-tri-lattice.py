@@ -5,10 +5,12 @@ Created on 04.09.2024
 
 triangle lattice example
 '''
-from qmodel import *
-from dft import *
+import itertools
+
 import matplotlib.pyplot as plt
 import numpy as np
+
+from qmodel import LatticeBasis, OperatorList, EnergyFunctional
 
 M = 3
 N = 2
@@ -49,7 +51,7 @@ for i1,i2 in itertools.combinations_with_replacement(range(r_num), 2): # i1<=i2
     r3 = N - r1 - r2
     F_arr[i1,i2] = E.legendre_transform([r1, r2, r3])['F']
 
-fig, ax = plt.subplots() 
+fig, ax = plt.subplots()
 ax.set_xlabel(r'$\rho_1$')
 ax.set_ylabel(r'$\rho_2$')
 F_heatmap = ax.imshow(F_arr, cmap='Blues', interpolation='none', extent=[0,1,0,1])

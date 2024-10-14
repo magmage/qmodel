@@ -5,9 +5,10 @@ Created on 10.08.2024
 
 spin-lattice example from documentation / changed
 '''
-from qmodel import *
 import matplotlib.pyplot as plt
 import numpy as np
+
+from qmodel import LatticeBasis, SpinBasis
 
 # compare F for dimer to https://arxiv.org/pdf/2303.15084
 
@@ -24,7 +25,7 @@ U = 1
 next_site = lambda qn: dict(qn, i=qn['i']%M+1)
 
 H = -t * b_onepart.sum(lambda qn: b.hop(next_site(qn), qn).add_adj()) \
-    +U * b_lattice.sum(lambda qni: b.hop(dict(qni, s=1/2)) * b.hop(dict(qni, s=-1/2))) 
+    +U * b_lattice.sum(lambda qni: b.hop(dict(qni, s=1/2)) * b.hop(dict(qni, s=-1/2)))
 
 E = H.eig(hermitian = True)
 
