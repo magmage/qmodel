@@ -6,12 +6,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qmodel"
-version = "0.2.1"
+version = "0.2.2"
 readme = "README.md"
 dependencies = [
     "numpy",
-    "matplotlib",
     "scipy",
+    "itertools"
 ]
 authors = [
     {name = "Markus Penz", email = "m.penz@inter.at"},
