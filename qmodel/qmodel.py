@@ -4,9 +4,7 @@ qmodel - library for Hilbert space objects and simple quantum models
 created on 01.08.2024
 
 version 0.2.0 for supporting nested tensor products
-version 0.2.1
-
-compare libs: SymPsi, OpenFermion
+current version 0.2.2 (23.10.2024)
 '''
 
 import itertools
@@ -431,21 +429,22 @@ class Vector:
         
     def __mul__(self, a):
         # mul operator, return new object X = self * a
-        if isinstance(a, numbers.Number):
-            X = Vector(self.basis)
-            X.col = a*self.col
-        else:
-            raise TypeError('Type error in multiplication.')
-
+        if not isinstance(a, numbers.Number):
+            raise TypeError('Type error in multiplication.')        
+        X = Vector(self.basis)
+        X.col = a*self.col
         return X
     
     def __rmul__(self, a):
         # mul operator, return new object X = a * self
         # commutative in all cases
         # Operator * Vector in handled in Operator class
-        X = self.__mul__(a)
-
-        return X
+        return self.__mul__(a)
+    
+    def __truediv__(self, a):
+        if not isinstance(a, numbers.Number):
+            raise TypeError('Number type expected in division.')
+        return self.__mul__(1/a)
     
     def inner(self, X) -> complex:
         # inner product with second vector where self gets complex conjugated
@@ -814,11 +813,9 @@ class OperatorList: # list of operators
         return self.__mul__(A) # is commutative
         
     def __truediv__(self, a):
-        if not isinstance(a, numbers.Number):
-            raise TypeError('Number type expected in multiplication from left.')
         B = OperatorList(self.basis)
         for op in self.operators:
-            B.append(op/a)
+            B.append(op/a) # type is checked in Operator __truediv__
         return self
     
     def conj(self) -> 'OperatorList': # conjugate
