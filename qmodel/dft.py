@@ -5,8 +5,7 @@
 import numpy as np
 from typing import Union
 from scipy.optimize import minimize
-from .qmodel import Operator, OperatorList, Vector
-from .timer import timer
+from .qmodel import Operator, OperatorList
 
 class EnergyFunctional:
     # energy functional with base Hamiltonian H0

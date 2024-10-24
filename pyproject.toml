@@ -11,7 +11,6 @@ readme = "README.md"
 dependencies = [
     "numpy",
     "scipy",
-    "itertools"
 ]
 authors = [
     {name = "Markus Penz", email = "m.penz@inter.at"},
