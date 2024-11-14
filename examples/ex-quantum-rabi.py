@@ -7,18 +7,20 @@ quantum Rabi model example
 '''
 import matplotlib.pyplot as plt
 import numpy as np
-
+from math import sqrt
 from qmodel import NumberBasis, SpinBasis, EnergyFunctional
 
-oscillator_size = 20
+oscillator_size = 50
 b_oscillator = NumberBasis(oscillator_size)
 b_spin = SpinBasis()
 b = b_oscillator.tensor(b_spin)
 
 num_op = b_oscillator.diag().extend(b) # number operator for oscillator
 x_op = b_oscillator.x_operator().extend(b)
-sigma_z = b_spin.sigma_z().extend(b)
+p_op = -1j*b_oscillator.dx_operator().extend(b)
 sigma_x = b_spin.sigma_x().extend(b)
+sigma_y = b_spin.sigma_y().extend(b)
+sigma_z = b_spin.sigma_z().extend(b)
 
 t = 1
 
@@ -27,15 +29,50 @@ CouplingRabi = x_op*sigma_z
 
 def check_sigma_x(lam, sigma, x, j):
     # sigma and x must be in a precise relation after d/d xi applied on displacement rule
-    if abs(lam*sigma + j + x) > 10e-4:
+    if abs(lam*sigma + j + x) > 1e-3:
         print(f'sigma--xi check: FAIL at lam={lam}, sigma={sigma}, xi={x}, j={j}! maybe increase oscillator_size value')
 
-def plot_functionals_in_sigma():
-    sigma_space = np.linspace(-1,1,51)
+def check_FB_for_v(lam, v, Psi):
+    # check relation of expectation values that can be used to determine v like in the FB approach
+    d = (sigma_x*p_op).expval(Psi) - 2*lam*(x_op**2*sigma_y).expval(Psi) - 2*v*(x_op*sigma_y).expval(Psi)
+    if abs(d) < 10e-4:
+        print('FB equation for v fulfilled!')
+    else:
+        print(f'FB equation for v NOT fulfilled by {d}')
 
-    lam = 1
-    x = 0.5
-    eps = 0.1
+## test hypervirial expressions
+#lam = 1
+#v = 1
+#j = 0
+#H = H0_Rabi_KS + lam*CouplingRabi + v*sigma_z + j*x_op
+#sol = H.eig(hermitian=True)
+#Psi = sol['eigenvectors'][0]
+# check_FB_for_v(lam, v, Psi)
+#
+# print(sigma_y.expval(Psi))
+# print((x_op*sigma_y).expval(Psi))
+# print(p_op.expval(Psi))
+# print(x_op.expval(Psi) + lam*sigma_z.expval(Psi) + j)
+# print(t*sigma_z.expval(Psi) + lam*(x_op*sigma_x).expval(Psi) + v*sigma_x.expval(Psi))
+#print((p_op**2).expval(Psi) - (x_op**2).expval(Psi) - lam*(x_op*sigma_z).expval(Psi) - j*x_op.expval(Psi))
+# print((x_op*sigma_z).expval(Psi) + 2*t*(p_op*sigma_y).expval(Psi) + lam + j*sigma_z.expval(Psi))
+# print((p_op*sigma_z).expval(Psi))
+# print((p_op*sigma_y).expval(Psi) + 2*t*(x_op*sigma_z).expval(Psi) + 2*lam*(x_op**2*sigma_x).expval(Psi) + 2*v*(x_op*sigma_x).expval(Psi))
+# print((x_op*p_op + p_op*x_op).expval(Psi))
+# for n in range(10):
+#     print('x^n n={} res={}'.format(n, (x_op**n*sigma_y).expval(Psi)))
+#     print('p^n n={} res={}'.format(n, (p_op**n*sigma_y).expval(Psi)))
+
+#a_op = b_oscillator.annihilator().extend(b)
+#print(a_op.expval(Psi) + 1/sqrt(2)*(lam*sigma_z.expval(Psi)+j) + 1j*sqrt(2)*lam*t*sigma_y.expval(Psi))
+#print(num_op.expval(Psi) - (lam**2+j**2)/2 - lam*j*sigma_z.expval(Psi) - 2*lam**2*t**2 + 2*lam**2*t*sigma_x.expval(Psi) )
+
+def plot_functionals_in_sigma():
+    sigma_space = np.linspace(-0.95,0.95,51)
+    
+    lam = 3
+    x = 0.0
+    #eps = 0.1
 
     E_full = EnergyFunctional(H0_Rabi_KS + lam*CouplingRabi, [sigma_z, x_op])
     E_KS = EnergyFunctional(H0_Rabi_KS, [sigma_z, x_op])
@@ -48,39 +85,58 @@ def plot_functionals_in_sigma():
     F_approx = []
     v_full_eps = []
     v_full_eps_prox = []
-
+    vx = []
+    vx_eta = []
+    vx_guess = []
+    vxc = []
+    
     for sigma in sigma_space:
         LT_full = E_full.legendre_transform([sigma, x])
-        LT_full_eps = E_full.legendre_transform([sigma, x], epsMY=eps)
+        #LT_full_eps = E_full.legendre_transform([sigma, x], epsMY=eps)
         LT_KS = E_KS.legendre_transform([sigma, x])
 
         check_sigma_x(lam, sigma, x, LT_full['pot'][1])
         check_sigma_x(0, sigma, x, LT_KS['pot'][1])
 
         F_full.append(LT_full['F'])
-        F_full_eps.append(LT_full_eps['F'])
-        v_full_eps.append(LT_full_eps['pot'][0])
-        v_full_eps_prox.append(-1/eps * (sigma - E_full.prox([sigma, x], eps)[0])) # Th. 9 in paper
+        #F_full_eps.append(LT_full_eps['F'])
+        #v_full_eps.append(LT_full_eps['pot'][0])
+        #v_full_eps_prox.append(-1/eps * (sigma - E_full.prox([sigma, x], eps)[0])) # Th. 9 in paper
         F_KS.append(LT_KS['F'])
         E_xc.append(F_full[-1] - F_KS[-1])
-
+        
         # solve KS and full system for test
         sol_full = E_full.solve(LT_full['pot'])
         sol_KS = E_KS.solve(LT_KS['pot'])
         test_F_full.append(sol_full['gs_energy'] - np.dot(LT_full['pot'], [sigma, x]))
         test_F_KS.append(sol_KS['gs_energy'] - np.dot(LT_KS['pot'], [sigma, x]))
+        
+        # vpx approx
+        ## KS should be solved w/o coupling
+        vx.append(lam*x + lam**2*sigma)
+        eta_c = 1/2
+        vx_eta.append(lam*x + lam**2*sigma * eta_c)
+        vx_guess.append(lam*x + lam**2*sigma + 1/2*lam**2*(sigma_x*sigma_z*sigma_x).expval(sol_KS['gs_vector'])/sigma_x.expval(sol_KS['gs_vector'])**2)
+        vxc.append(-t*sigma/sigma_x.expval(sol_KS['gs_vector']) + (t*sigma+lam*(x_op*sigma_x).expval(sol_full['gs_vector']))/sigma_x.expval(sol_full['gs_vector']))
 
     fig, ax = plt.subplots(ncols=1, nrows=1)
-    fig.suptitle(r'Universal functional in $\sigma$ at $\xi$={}'.format(x))
-    ax.plot(sigma_space, F_full, 'b', label=r'$F^\lambda(\sigma,\xi)$, $\lambda={}$'.format(lam))
-    ax.plot(sigma_space, F_full_eps, 'b--', label=r'$F_\varepsilon^\lambda(\sigma,\xi)$, $\lambda={}$, $\varepsilon={}$'.format(lam, eps))
-    ax.plot(sigma_space, v_full_eps, 'k--', label=r'$v$ from $-\nabla F_\varepsilon^\lambda(\sigma,\xi)$'.format(lam, eps))
-    ax.plot(sigma_space, -np.gradient(F_full_eps, sigma_space[1]-sigma_space[0]), 'kx', label=r'$v$ from numeric differentiation')
-    ax.plot(sigma_space, v_full_eps_prox, 'k.', label=r'$v$ from proximal map')
-    ax.plot(sigma_space, F_KS, 'g', label=r'$F^0(\sigma,\xi)$')
-    ax.plot(sigma_space, test_F_full, 'yx', label=r'test for  $F^\lambda(\sigma,\xi)$')
-    ax.plot(sigma_space, test_F_KS, 'yx', label=r'test for $F^0(\sigma,\xi)$')
-
+    fig.suptitle(r'Universal functional in $\sigma$ at $\xi$={} and $\lambda$={}'.format(x, lam))
+    #ax.plot(sigma_space, F_full, 'b', label=r'$F^\lambda(\sigma,\xi)$, $\lambda={}$'.format(lam))
+    #ax.plot(sigma_space, F_full_eps, 'b--', label=r'$F_\varepsilon^\lambda(\sigma,\xi)$, $\lambda={}$, $\varepsilon={}$'.format(lam, eps))
+    #ax.plot(sigma_space, v_full_eps, 'k--', label=r'$v$ from $-\nabla F_\varepsilon^\lambda(\sigma,\xi)$'.format(lam, eps))
+    #ax.plot(sigma_space, -np.gradient(F_full_eps)/(sigma_space[1]-sigma_space[0]), 'kx', label=r'$v$ from numeric differentiation')
+    #ax.plot(sigma_space, v_full_eps_prox, 'k.', label=r'$v$ from proximal map')
+    #ax.plot(sigma_space, F_KS, 'g', label=r'$F^0(\sigma,\xi)$')
+    #ax.plot(sigma_space, E_xc, 'r.', label=r'$E_{xc}$')
+    #ax.plot(sigma_space, test_F_full, 'yx', label=r'test for  $F^\lambda(\sigma,\xi)$')
+    #ax.plot(sigma_space, test_F_KS, 'yx', label=r'test for $F^0(\sigma,\xi)$')
+    
+    ax.plot(sigma_space, np.gradient(E_xc)/(sigma_space[1]-sigma_space[0]), 'rx', label=r'$v_{Hxc}$ from numeric differentiation')
+    ax.plot(sigma_space, vxc, 'r-', label=r'$v_{Hxc}$ from FB-formula')
+    ax.plot(sigma_space, vx, 'g-', label=r'$v_{Hpx}$ xc-approx')
+    #ax.plot(sigma_space, vx_guess, 'g.', label=r'$v_{Hpx}$ xc-guess next order')
+    ax.plot(sigma_space, vx_eta, 'g--', label=r'$v_{{Hpx}}$ xc-approx with $\eta_c={}$'.format(eta_c))
+    
     ## approximations: correct 1/2 in HO
     #ax.plot(sigma_space, 1-t*np.sqrt(1-np.square(sigma_space))+x**2, 'g.', label=r'$1-t\sqrt{1-\sigma^2}+\xi^2$')
     #approx = lambda sigma: 1-t*sqrt(1-sigma**2)+(x+lam*sigma/2)**2 - lam**2/4
@@ -133,8 +189,8 @@ def plot_in_lambda():
 #plot_in_lambda()
 
 def plot_photon_filling():
-    lam = 2
-    v = -0.1 # fixed
+    lam = 3
+    v = 0 # fixed
     j = 0 # fixed
     Psi0 = EnergyFunctional(H0_Rabi_KS + lam*CouplingRabi, [sigma_z, x_op]).solve([v, j])['gs_vector']
 
@@ -196,4 +252,5 @@ def plot_functionals_in_sigma_for_paper():
     ax.set_ylabel(r'$F_\mathrm{LL}(\sigma,0)$')
 
 #plot_functionals_in_sigma_for_paper()
+
 plt.show()
