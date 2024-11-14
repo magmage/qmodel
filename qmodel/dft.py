@@ -1,6 +1,7 @@
-## library for DFT objects
-## written for Oslo Dicke-model project
-## adapted from qmodel_old/func.py
+'''
+extension library for DFT objects
+(CC0) Markus Penz
+'''
 
 import numpy as np
 from typing import Union

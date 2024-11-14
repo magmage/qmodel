@@ -1,9 +1,5 @@
 '''
-Created on 10.08.2024
-
-@author: mage
-
-spin-lattice example from documentation / changed
+extended spin-lattice example from documentation
 '''
 import matplotlib.pyplot as plt
 import numpy as np
