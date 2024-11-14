@@ -4,7 +4,7 @@ qmodel - library for Hilbert space objects and simple quantum models
 created on 01.08.2024
 
 version 0.2.0 for supporting nested tensor products
-current version 0.2.2 (23.10.2024)
+current version 0.2.3 (14.11.2024)
 '''
 
 import itertools
@@ -192,14 +192,12 @@ class Basis:
         """
         return self.ntensor(n, symmetry = 'a')
 
-    def _find_qn(self, qn: dict|str, pos_list: list|None = None, permutation_sign: int = 1) -> list:
+    def _find_qn(self, qn: dict|str) -> list:
         """
         Recursively finds quantum numbers in all elements and returns a list of results.
 
         Parameters:
             qn (dict | str): The quantum number(s) to search for.
-            pos_list (list | None): Position list used during recursion (initially None).
-            permutation_sign (int): The permutation sign for antisymmetric bases (default is 1).
 
         Returns:
             list: A list of dictionaries containing the search results.
@@ -209,14 +207,13 @@ class Basis:
         # either full qn dict is matched or just a single qn key is looked up
         # returns the full index, and then per qn_key the position in the basis-tree as a list and the permutation sign for antisymmetric bases
         res = []
-        if pos_list is None: pos_list = []
         
         # subroutine for recursive call, starts with type(el) == tuple
-        def _find_qn_el(qn: dict|str, el: dict|tuple, pos_list: list|None = None, permutation_sign: int = 1): # find in element
+        def _find_qn_el(qn: dict|str, el: dict|tuple, pos_list: list|None = None, permutation_sign_prev: int = 1): # find in element
             if pos_list is None: pos_list = []
             res = []
             for pos,e in enumerate(el[1:]): # skip first element in tuple (symmetry marker)
-                permutation_sign = (-1 if el[0]=='a' else 1)**pos * permutation_sign # only if antisymmetric
+                permutation_sign = (-1 if el[0]=='a' else 1)**pos * permutation_sign_prev # only if antisymmetric, include sign from previous iteration
                 if type(e) is dict:
                     if type(qn) is dict and {key:e[key] for key in e if key in qn.keys()} == qn: # qn subset of e
                         # return basis and where it was found with permutation_sign
@@ -237,12 +234,12 @@ class Basis:
             elif type(e) is dict:
                 if type(qn) is dict and {key:e[key] for key in e if key in qn.keys()} == qn: # compare directly in primitive basis, qn subset of e
                     found.append({'index': i, 'res': [{'found_pos': [], 'permutation_sign': 1}]})
-                elif type(qn) is str and qn in e.keys():
+                elif type(qn) is str and qn in e.keys(): # for diag()
                     found.append({'index': i, 'res': [e[qn]]}) # return just value
             
         return found
     
-    def sum(self, func: Callable) -> float:
+    def sum(self, func: Callable):
         """
         Iterates all basis elements e and sums over the return value of func(e).
 
@@ -281,7 +278,7 @@ class Basis:
             qn_key (Optional[str]): The quantum number key to use. If None and the basis has only one quantum number, it defaults to that key.
 
         Returns:
-            Operator: A new operator with diagonal elements corresponding to the quantum number values.
+            Operator: A new operator with diagonal elements corresponding to the quantum number values. In a many-particle basis the values of all single-particle basis elements are summed.
 
         Raises:
             ValueError: If qn_key is not provided and cannot be determined, or if it is not part of the basis.
@@ -356,7 +353,7 @@ class Basis:
             found2 = found1 # no need to search again
         else:
             found2 = self._find_qn(qn2)
-        
+            
         for f1 in found1:
             e1 = self.el[f1['index']]
             for f2 in found2:
