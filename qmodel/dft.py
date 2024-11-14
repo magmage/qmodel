@@ -20,17 +20,6 @@ class EnergyFunctional:
         H0 (Operator): The base Hamiltonian.
         dens_operators (Union[Operator, OperatorList]): Operators related to density variables.
     """
-    """
-    A class representing the energy functional with a base Hamiltonian H0 and operators
-    that give 'density' variables as expectation values.
-
-    This class provides methods for solving the Hamiltonian, performing Legendre transforms,
-    and proximal mappings for energy functionals.
-    
-    Attributes:
-        H0 (Operator): The base Hamiltonian.
-        dens_operators (Union[Operator, OperatorList]): Operators related to density variables.
-    """
     
     def __init__(self, H0: Operator, dens_operators: Union[Operator, OperatorList, list]):
         """
