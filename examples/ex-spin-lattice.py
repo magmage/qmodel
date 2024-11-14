@@ -16,7 +16,6 @@ M = 3 # lattice sites
 N = 3 # particles
 b_lattice = LatticeBasis(M)
 b_spin = SpinBasis()
-print(b_spin)
 b_onepart = b_lattice.tensor(b_spin) # one-particle space
 b = b_onepart.wedge(N)
 
@@ -25,7 +24,7 @@ U = 1
 next_site = lambda qn: dict(qn, i=qn['i']%M+1)
 
 H = -t * b_onepart.sum(lambda qn: b.hop(next_site(qn), qn).add_adj()) \
-    +U * b_lattice.sum(lambda qni: b.hop(dict(qni, s=1/2)) * b.hop(dict(qni, s=-1/2)))
+    +U * b_lattice.sum(lambda qni: b.hop(dict(qni, s=1)) * b.hop(dict(qni, s=-1)))
 
 E = H.eig(hermitian = True)
 
