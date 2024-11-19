@@ -19,9 +19,6 @@ class EnergyFunctional:
         H0 (Operator): The base Hamiltonian.
         dens_operators (Union[Operator, OperatorList]): Operators related to density variables.
     """
-    # energy functional with base Hamiltonian H0
-    # and operators that give 'density' variable as expectation values
-    
     def __init__(self, H0: Operator, dens_operators: Union[Operator, OperatorList, list]):
         """
         Initializes the energy functional with a base Hamiltonian and density operators.
@@ -36,14 +33,19 @@ class EnergyFunctional:
         """
         if not isinstance(H0, Operator):
             raise TypeError('Base Hamiltonian must be of type Operator')
+
+        # always convert density operators to OperatorList
+        if isinstance(dens_operators, Operator):
+            dens_operators = OperatorList(H0.basis, [dens_operators])
         if isinstance(dens_operators, list):
-            dens_operators = OperatorList(H0.basis, dens_operators) # convert to OperatorList using H0 basis
+            dens_operators = OperatorList(H0.basis, dens_operators)
+
         if dens_operators is not None and H0.basis != dens_operators.basis:
             raise ValueError('Base Hamiltonian and density operators must share same basis.')
-        
+
         self.H0 = H0
-        self.dens_operators = dens_operators
-    
+        self.dens_operators: OperatorList = dens_operators
+
     def solve(self, pot: Union[float, list]):
         """
         Solves the Hamiltonian for a given potential and returns the ground state energy, vector, and degeneracy.
@@ -61,9 +63,11 @@ class EnergyFunctional:
                 'gs_vector': sol['eigenvectors'][0],
                 'gs_degeneracy': sol['degeneracy'][0]
             }} # merge with solution dict
-    
+
     #@timer
-    def legendre_transform(self, dens: Union[float, list], epsMY: float = 0, verbose = False):
+    def legendre_transform(self, dens: Union[float, list[float]],
+                           epsMY: float = 0, verbose = False,
+                           gtol: float = 1e-5):
         """
         Computes the Legendre transform of the energy functional at a given density.
 
@@ -77,22 +81,35 @@ class EnergyFunctional:
 
         Raises:
             ValueError: If the number of density components and density operators do not match.
-        """    
-        # gives Legendre transform F at dens, also returns potential (density-potential inversion)
-        # dens must match dens_operators
-        if (isinstance(dens, float) and len(self.dens_operators) > 1) or (isinstance(dens, list) and len(self.dens_operators) == 1):
-            raise ValueError('Numbers of density components and density operators in energy functional must agree.')
+        """
+        # convert dens to list if it is supplied as float
+        if isinstance(dens, float):
+            dens = [dens]
+        if len(dens) != len(self.dens_operators):
+            raise ValueError(
+                f'Numbers of density components ({len(dens)}) and density '
+                f'operators ({len(self.dens_operators)}) in energy functional '
+                'must agree.'
+            )
+
         # F from E functional
         def G(pot):
-            if len(self.dens_operators) == 1: pot = pot[0] # just single component
-            # already include MY regularization in E functional after Eq. (10) in doi:10.1063/1.5037790 (Generalized KS on BS)
-            return -(self.solve(pot)['gs_energy'] - epsMY*np.linalg.norm(pot)**2/2 - np.dot(pot, dens))
+            # already include MY regularization in E functional after Eq. (10)
+            # in doi:10.1063/1.5037790 (Generalized KS on BS)
+            return -(self.solve(pot)['gs_energy'] \
+                - epsMY*np.linalg.norm(pot)**2/2 \
+                - np.dot(pot, dens))
+
         # perform optimization
-        res = minimize(G, [0]*len(self.dens_operators), method='BFGS', options={'disp': False, 'gtol': 1e-5})
-        if res['success'] == False and verbose: print('Warning! Optimization in Legendre transformation not successful.')
+        res = minimize(G, [0]*len(self.dens_operators), method='BFGS',
+                       options={'disp': False, 'gtol': gtol})
+        if verbose and not res['success']:
+            print('Warning! Optimization in Legendre transformation not successful.')
+            print('Result from scipy.optimize.minimize:')
+            print(res)
         pot = res['x'] if len(res['x']) > 1 else res['x'][0]
         return {'F': -res['fun'], 'pot': pot}
-    
+
     #@timer
     def prox(self, dens: Union[float, list], epsMY: float):
         """
