@@ -748,7 +748,53 @@ class Vector:
         """   
         if self.basis != X.basis:
             raise TypeError('The bases do not match between the vectors.')
+
+    def __neg__(self):
+        """
+        Negates the current vector.
+
+        Returns:
+            Vector: A new vector representing the negative of the current vector.
+        """
+        X = self.copy()
+        X.col = -X.col
+        return X
+              
+    def __add__(self, X):
+        """
+        Adds another vector to the current vector.
+
+        Parameters:
+            X (Vector): The vector to add.
+
+        Returns:
+            Vector: A new vector representing the sum.
+
+        Raises:
+            TypeError: If the addition is not valid.
+        """
+        Y = Vector(self.basis)
+        if isinstance(X, Vector):
+            # must have same basis and size
+            self._test_basis(X)
+            Y.col = np.add(self.col, X.col)         
+        else:
+            raise TypeError('Type error in addition.')
         
+        return X
+    
+    def __sub__(self, X):
+        """
+        Subtracts another vector from the current vector.
+
+        Parameters:
+            X (Vector): The vector to subtract.
+
+        Returns:
+            Vector: A new vector representing the difference.
+        """ 
+        return self.__add__(-X)
+
     def __mul__(self, a):
         """
         Multiplies the vector by a scalar value.
@@ -880,7 +926,6 @@ class Operator:
         basis (Basis): The basis in which the operator is defined.
         matrix (np.ndarray): The matrix representation of the operator.
     """
-    # matrix w.r.t to basis
     
     def __init__(self, basis: Basis):
         """
@@ -930,9 +975,8 @@ class Operator:
         Negates the current operator.
 
         Returns:
-            Operator: A new operator representing the negation of the current operator.
-        """        
-        # negation, return new object B = -A
+            Operator: A new operator representing the negative of the current operator.
+        """
         B = self.copy()
         B.matrix = -B.matrix
         return B
@@ -950,8 +994,6 @@ class Operator:
         Raises:
             TypeError: If the addition is not valid.
         """
-        # add operators, return new object B = self + A
-        # also handels scalar addition
         B = Operator(self.basis)
         if isinstance(A, Operator):
             # must have same basis and size
@@ -1012,9 +1054,7 @@ class Operator:
 
         Raises:
             TypeError: If the input type is not supported.
-        """   
-        # mul operator, return new object B = self * A
-        # also handels scalar multiplication
+        """
         if isinstance(A, Operator):
             # must have same basis and size
             self._test_basis(A)
@@ -1051,9 +1091,7 @@ class Operator:
 
         Returns:
             Operator: The result of the multiplication.
-        """  
-        # mul operator, return new object B = A * self
-        # also handels scalar multiplication
+        """
         if isinstance(A, Operator):
             # must have same basis and size
             self._test_basis(A)
@@ -1231,7 +1269,6 @@ class Operator:
         Returns:
             dict: A dictionary with eigenvalues, eigenvectors, and (if applicable) degeneracy.
         """
-        # solve for eigensystem
         if hermitian: # trust the input, is not checked
             res = np.linalg.eigh(self.matrix) # eigenvalues ordered, lowest first
             # count degeneracy in order of eigenvalues
@@ -1260,7 +1297,6 @@ class Operator:
         Raises:
             ValueError: If the operator is not Hermitian.
         """
-        # test if it is really hermitian conjugate
         if not np.allclose(self.matrix, self.matrix.conj().T, 0, HERMITICITY_ACCURACY):
             raise ValueError('Operator is not hermitian (self-adjoint).')
 
@@ -1300,7 +1336,6 @@ class Operator:
             TypeError: If ext_basis is not of type Basis.
             ValueError: If the extended basis does not include the quantum numbers of the current basis.
         """
-        # extend to a larger basis in tensor space (block form)
         if not isinstance(ext_basis, Basis): raise TypeError('Argument must be of type Basis.')
         # qn keys have to match
         if len(self.basis.qn_keys.intersection(ext_basis.qn_keys)) != len(self.basis.qn_keys):
@@ -1329,6 +1364,7 @@ class Operator:
         Raises:
             TypeError: If the second argument is not of type Basis.
         """
+        # Note: should be able to also work with symmetric/antisymmetric basis
         # tensor basis, can also be provided to allow creation of tensorized operators on same basis 
         if tensor_basis is None:
             tensor_basis = self.basis.tensor(A.basis)
@@ -1415,7 +1451,7 @@ class OperatorList: # list of operators
     
     def append(self, operators: Operator|list):
         """
-        Appends one or multiple operators to the OperatorList.
+        Appends one or multiple operators to the OperatorList. Note that this method does not create a new instance.
 
         Parameters:
             operators (Operator or list): One or more operators to append.
@@ -1423,8 +1459,6 @@ class OperatorList: # list of operators
         Raises:
             ValueError: If the appended operator(s) do not have the same basis as the OperatorList.
         """
-        # append one or multiple operators
-        # careful, this does not create a new instance
         if isinstance(operators, list):
             for op in operators:
                 self.append(op) # recursive call
@@ -1444,7 +1478,6 @@ class OperatorList: # list of operators
         Returns:
             OperatorList: A new OperatorList that is a copy of the current one.
         """
-        # return a copy of itself
         A = OperatorList(self.basis)
         for op in self.operators:
             A.append(op.copy())
@@ -1457,7 +1490,6 @@ class OperatorList: # list of operators
         Returns:
             OperatorList: A new OperatorList with all operators negated.
         """
-        # negation, return new object B = -A
         B = OperatorList(self.basis)
         for op in self.operators:
             B.append(-op) # makes copy
@@ -1477,8 +1509,6 @@ class OperatorList: # list of operators
             ValueError: If the dimensions of the OperatorLists do not match.
             TypeError: If the addition is performed with an invalid type.
         """
-        # add operator vector, return new object B = self + A
-        # also handles scalar addition
         B = OperatorList(self.basis)
         if isinstance(A, OperatorList):
             # must have same size
@@ -1513,8 +1543,6 @@ class OperatorList: # list of operators
             ValueError: If the dimensions do not match for inner product.
             TypeError: If the multiplication is performed with an invalid type.
         """
-        # mul operator vector, return new object B = self * A
-        # with scalar or inner product with list
         if isinstance(A, list) or isinstance(A, np.ndarray):
             # must have same size
             if len(self.operators) != len(A):
