@@ -2,9 +2,6 @@
 qmodel - library for Hilbert space objects and simple quantum models
 (CC0) Markus Penz
 created on 01.08.2024
-
-version 0.2.0 for supporting nested tensor products
-current version 0.2.3 (14.11.2024)
 '''
 
 import itertools
