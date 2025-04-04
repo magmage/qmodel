@@ -41,10 +41,10 @@ N_arr = np.zeros((v_num, v_num))
 fig, ax = plt.subplots(1,2)
 E_heatmap = ax[0].imshow(E_arr, cmap='hot', interpolation='none', extent=[-v_max,v_max,-v_max,v_max])
 N_heatmap = ax[1].imshow(N_arr, cmap='Blues', interpolation='none', extent=[-v_max,v_max,-v_max,v_max])
-#E_heatmap.set_clim(vmin=-20, vmax=0)
-#N_heatmap.set_clim(vmin=0, vmax=1)
-#fig.colorbar(E_heatmap)
-#fig.colorbar(N_heatmap)
+E_heatmap.set_clim(vmin=-20, vmax=0)
+N_heatmap.set_clim(vmin=0, vmax=1)
+fig.colorbar(E_heatmap)
+fig.colorbar(N_heatmap)
 
 def plot(lam):
     H0_Rabi = H0_Rabi_KS + lam*CouplingRabi
