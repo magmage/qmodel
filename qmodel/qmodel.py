@@ -4,7 +4,7 @@ qmodel - library for Hilbert space objects and simple quantum models
 created on 01.08.2024
 
 version 0.2.0 for supporting nested tensor products
-current version 0.2.3 (14.11.2024)
+current version 0.2.4 (17.6.2025)
 '''
 
 import itertools
@@ -41,7 +41,7 @@ class Basis:
         self.dim = 0
         self.qn_keys = set()
         self.part_num = 0 # components in tuple elements
-        self.part_basis = self # component basis
+        self.part_basis = self # component basis used for symmetry 'x' | 's' | 'a'
         self.symmetry = None # None | 'x' | 's' | 'a'
         # symmetry = None has el = list of dicts {'qn_key1': qn1, 'qn_key2': qn2}
         # symmetry = 'x' | 's' | 'a' has el = nested tuples, length is part_num
@@ -500,7 +500,7 @@ class NumberBasis(Basis): # for single state boson Fock space
         of the next quantum number (number of bosons).
 
         Returns:
-            Operator: The creation operator represented as a matrix.
+            Operator: The creation operator.
         """
         # generate matrix / only -1 secondary-diagonal in qn
         out_op = Operator(self)
@@ -519,7 +519,7 @@ class NumberBasis(Basis): # for single state boson Fock space
         of the current quantum number.
 
         Returns:
-            Operator: The annihilation operator represented as a matrix.
+            Operator: The annihilation operator.
         """ 
         # generate matrix / only +1 secondary-diagonal in qn
         out_op = Operator(self)
@@ -534,7 +534,7 @@ class NumberBasis(Basis): # for single state boson Fock space
         divided by the square root of 2.
 
         Returns:
-            Operator: Return the operator for the displacement coordinate represented as a matrix.
+            Operator: Return the operator for the displacement coordinate.
         """  
         return (self.creator() + self.annihilator()) / sqrt(2)
     
@@ -546,7 +546,7 @@ class NumberBasis(Basis): # for single state boson Fock space
         operators divided by the square root of 2.
 
         Returns:
-            Operator: Return the operator for the derivative w.r.t. the displacement coordinate represented as a matrix.
+            Operator: Return the operator for the derivative w.r.t. the displacement coordinate.
         """  
         return (-self.creator() + self.annihilator()) / sqrt(2)
 
@@ -579,7 +579,7 @@ class SpinBasis(Basis): # always single-particle
         [1, 0]]
 
         Returns:
-            Operator: The sigma-x operator represented as a matrix.
+            Operator: The sigma-x operator.
         """ 
         out_op = Operator(self)
         out_op.matrix[0, 1] = 1
@@ -595,7 +595,7 @@ class SpinBasis(Basis): # always single-particle
         [i, 0]]
 
         Returns:
-            Operator: The sigma-y operator represented as a matrix.
+            Operator: The sigma-y operator.
         """    
         out_op = Operator(self)
         out_op.matrix[0, 1] = -1j
@@ -611,7 +611,7 @@ class SpinBasis(Basis): # always single-particle
         [0, -1]]
 
         Returns:
-            Operator: The sigma-z operator represented as a matrix.
+            Operator: The sigma-z operator.
         """           
         out_op = Operator(self)
         out_op.matrix[0, 0] = 1
@@ -637,7 +637,7 @@ class SpinBasis(Basis): # always single-particle
         [0, 0]]
 
         Returns:
-            Operator: The spin raising operator represented as a matrix.
+            Operator: The spin raising operator.
         """          
         out_op = Operator(self)
         out_op.matrix[0, 1] = 1
@@ -652,7 +652,7 @@ class SpinBasis(Basis): # always single-particle
         [1, 0]]
 
         Returns:
-            Operator: The spin lowering operator represented as a matrix.
+            Operator: The spin lowering operator.
         """ 
         out_op = Operator(self)
         out_op.matrix[1, 0] = 1
@@ -667,7 +667,7 @@ class SpinBasis(Basis): # always single-particle
         [0, 0]]
 
         Returns:
-            Operator: The projection operator for the spin-up state represented as a matrix.
+            Operator: The projection operator for the spin-up state.
         """
         out_op = Operator(self)
         out_op.matrix[0, 0] = 1
@@ -682,7 +682,7 @@ class SpinBasis(Basis): # always single-particle
         [0, 1]]
 
         Returns:
-            Operator: The projection operator for the spin-down state represented as a matrix.
+            Operator: The projection operator for the spin-down state.
         """
         out_op = Operator(self)
         out_op.matrix[1, 1] = 1
@@ -1364,17 +1364,17 @@ class Operator:
         Raises:
             TypeError: If the second argument is not of type Basis.
         """
-        # Note: should be able to also work with symmetric/antisymmetric basis
-        # tensor basis, can also be provided to allow creation of tensorized operators on same basis 
         if tensor_basis is None:
             tensor_basis = self.basis.tensor(A.basis)
         elif not isinstance(tensor_basis, Basis):
             raise TypeError('Second (optional) argument must be of type Basis.')
+        elif self.basis.dim * A.basis.dim != tensor_basis.dim:
+            raise ValueError('The dimension of the provided basis does not fit the bases of the operators in the tensor product.')
             
         if isinstance(A, Operator):
             # new Operator
             out_op = Operator(tensor_basis)
-            out_op.matrix = np.kron(self.matrix, A.matrix)
+            out_op.matrix = np.kron(self.matrix, A.matrix) ## does not fit to symmetric/antisymmetric basis
             return out_op
         elif isinstance(A, OperatorList): # apply on whole list
             out_op_list = OperatorList(tensor_basis)
@@ -1639,7 +1639,7 @@ class OperatorList: # list of operators
             out.append(op.expval(vec, check_real, transform_real))
         return np.array(out) # make it np array so one can add etc.
 
-    def norm(self) -> float: # 2-norm of operator list
+    def norm(self) -> float:
         """
         Return the Euclidean norm of the list of operators \sqrt{\sum_i \left\| \hat{A_i} \right\|^2}.
 
@@ -1651,7 +1651,7 @@ class OperatorList: # list of operators
             out += op.norm()**2
         return sqrt(out)
     
-    def sum(self) -> Operator: # sum and return Operator
+    def sum(self) -> Operator:
         """
         Sums all operators in the list and returns the result as a single operator.
 
@@ -1660,6 +1660,17 @@ class OperatorList: # list of operators
         """
         B = Operator(self.basis)
         B.matrix = np.sum([A.matrix for A in self.operators], axis=0)
+        return B
+    
+    def sq(self) -> Operator:
+        """
+        Gives the inner product of the operator list with itself.
+
+        Returns:
+            Operator: A new operator that is the sum of all operators in the list squared.
+        """
+        B = Operator(self.basis)
+        B.matrix = np.sum([np.square(A.matrix) for A in self.operators], axis=0)
         return B
     
     def diag(self, trials: int = 5) -> dict:
