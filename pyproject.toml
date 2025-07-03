@@ -15,4 +15,9 @@ dependencies = [
 authors = [
     {name = "Markus Penz", email = "m.penz@inter.at"},
 ]
-license = {file = "LICENSE"}
+license-files = [
+    "LICENSE",
+]
+
+[tool.setuptools]
+packages = ["qmodel"]
