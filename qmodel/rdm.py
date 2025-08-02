@@ -5,7 +5,7 @@ Created on 11.06.2025
 '''
 
 import numpy as np
-from .qmodel import Vector
+from qmodel import Vector
 from math import log
 
 def rdm1(Psi: Vector):
@@ -14,7 +14,7 @@ def rdm1(Psi: Vector):
     gamma = np.zeros((b1.dim, b1.dim), dtype=np.complex128)
     for index1,e1 in enumerate(b1.el):
         for index2,e2 in enumerate(b1.el):
-            gamma[index1,index2] = Psi.basis.hop(e2,e1).expval(Psi)
+            gamma[index1,index2] = Psi.basis.hop(e2,e1).expval(Psi) ## should use symmetry
     return gamma
            
 def pair(Psi: Vector):
@@ -23,7 +23,7 @@ def pair(Psi: Vector):
     p = np.zeros((b1.dim, b1.dim), dtype=np.complex128)
     for index1,e1 in enumerate(b1.el):
         for index2,e2 in enumerate(b1.el):
-            p[index1,index2] = (Psi.basis.hop(e2,e2) - Psi.basis.hop(e2,e1) * Psi.basis.hop(e1,e2)).expval(Psi) # from CCR
+            p[index1,index2] = (Psi.basis.hop(e2,e2) - Psi.basis.hop(e2,e1) * Psi.basis.hop(e1,e2)).expval(Psi) # from CCR ## should use symmetry
     return p
 
 def cum(Psi: Vector):
@@ -32,8 +32,7 @@ def cum(Psi: Vector):
     p = pair(Psi)
     return p + np.square(np.absolute(gamma)) - np.outer(dens, dens) # opposite sign as Ziesche1995
 
-def entropy_fermions(Psi: Vector):
-    non = np.linalg.eigh(rdm1(Psi)).eigenvalues # natural orbitals occupation numbers
+def entropy_ph(non: list): # particle-hole entropy
     S = 0
     for n in non:
         try:
@@ -44,3 +43,14 @@ def entropy_fermions(Psi: Vector):
             print(f"entropy_fermions(): Unexpected {err=}, {type(err)=}")
             raise
     return S
+
+def entropy_fermions(Psi: Vector):
+    return entropy_ph(np.linalg.eigh(rdm1(Psi)).eigenvalues) # natural orbitals occupation numbers
+
+def natural(Psi: Vector):
+    res = np.linalg.eigh(rdm1(Psi))
+    # natural orbitals aee returned on one-particle basis
+    return {
+            'occupation': res[0],
+            'orbitals': [Vector(Psi.basis.part_basis, v) for v in np.transpose(res[1])], # eigenvectors are cols
+        }

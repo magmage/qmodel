@@ -4,16 +4,16 @@ qmodel - library for Hilbert space objects and simple quantum models
 created on 01.08.2024
 
 version 0.2.0 for supporting nested tensor products
-current version 0.2.4 (17.6.2025)
+current version 0.2.5 (1.8.2025)
 '''
 
 import itertools
 import numpy as np
-import numbers
 from math import sqrt
 from typing import Callable, Union, Iterable
 from copy import copy
 from scipy.linalg.lapack import cggev
+from numbers import Number
 
 # constants
 DEGENERACY_ACCURACY = 1e-10
@@ -72,6 +72,17 @@ class Basis:
             out += str(e) + '\n'
         return out
     
+    def __getitem__(self, i: int) -> 'Vector': # make subscriptable
+        """
+        Returns the i-th element of the basis as a vector.
+        """
+        if i < 0 or i >= self.dim:
+            raise ValueError('Index is out of bounds.')
+        
+        v = Vector(self)
+        v.col[i] = 1
+        return v
+        
     def tensor(self, basis: 'Basis') -> 'Basis':
         """
         Computes the tensor product of the current Basis with another Basis.
@@ -103,13 +114,83 @@ class Basis:
             # elements as merged dicts
             out_basis.el = [{**t[0], **t[1]} for t in el_tensor]
         else:
-            # elements as tuples but still part_num = 1
+            # elements as tuples and part_num = 2
             # save symmetry marker 'x'
             out_basis.symmetry = 'x'
             out_basis.part_num = 2
             out_basis.el = [('x',) + t for t in el_tensor]
         
         return out_basis
+    
+    ## old version not using itertools
+    # def ntensor(self, n: int, symmetry: str = 'x') -> 'Basis':
+    #     """
+    #     Computes the n-fold tensor product of the basis with itself, applying the specified symmetry.
+    #
+    #     Parameters:
+    #         n (int): The number of times to tensor the basis with itself.
+    #         symmetry (str): The symmetry type ('x' for none, 's' for symmetric, 'a' for antisymmetric).
+    #
+    #     Returns:
+    #         Basis: The resulting basis after tensoring and applying symmetry.
+    #
+    #     Raises:
+    #         ValueError: If n is not a non-negative integer or if symmetry is invalid.
+    #     """        
+    #
+    #     # n-fold tensor product
+    #     if int(n)!=n or n < 0: raise ValueError('n must be non-negative and integer valued.')
+    #     if not symmetry in ['x', 's', 'a']: raise ValueError('Symmetry must be of type \'x\', \'s\', or \'a\'')
+    #     if n == 0: return VacuumBasis()
+    #     if n == 1: return copy(self) # nothing to do
+    #
+    #     out_basis = Basis()
+    #     out_basis.qn_keys = self.qn_keys # same qn keys
+    #     out_basis.symmetry = symmetry
+    #
+    #     # if not nested because bases share same symmetry type then remove symmetry marker before combining them
+    #     if symmetry != self.symmetry: # nested
+    #         el_self = self.el
+    #         out_basis.part_num = n
+    #         out_basis.part_basis = self
+    #     else:
+    #         el_self = [e[1:] for e in self.el]
+    #         out_basis.part_num = self.part_num * n
+    #         out_basis.part_basis = self.part_basis
+    #
+    #     # always perform full tensor product and sort our later
+    #     el_tensor = itertools.product(el_self, repeat=n)
+    #
+    #     # if not nested, flatten elements
+    #     if symmetry == self.symmetry:
+    #         el_tensor = [tuple(itertools.chain.from_iterable(e)) for e in el_tensor]
+    #
+    #     # add symmetry marker and sort out wrong elements for 's' and 'a'
+    #     el_final = []
+    #     for e in el_tensor:
+    #         # check symmetry
+    #         inc = True # include this element
+    #         if symmetry in ['s', 'a']:
+    #             pos = 0
+    #             for e_part in out_basis.part_basis.el: # must be in that order
+    #                 if symmetry == 's':
+    #                     while pos < out_basis.part_num and e[pos] == e_part: # can have multiple e_part
+    #                         pos += 1
+    #                     if pos == out_basis.part_num:
+    #                         break
+    #                 elif symmetry == 'a':
+    #                     if e[pos] == e_part: # only single e_part
+    #                         pos += 1
+    #                     if pos == out_basis.part_num:
+    #                         break
+    #             inc = (pos == out_basis.part_num) # all found in right order
+    #         if inc: # include this element?
+    #             # add symmetry marker
+    #             el_final.append( (symmetry,) + e )
+    #
+    #     out_basis.dim = len(el_final)
+    #     out_basis.el = el_final
+    #     return out_basis
     
     def ntensor(self, n: int, symmetry: str = 'x') -> 'Basis':
         """
@@ -146,35 +227,20 @@ class Basis:
             out_basis.part_num = self.part_num * n
             out_basis.part_basis = self.part_basis
         
-        # always perform full tensor product and sort our later
-        el_tensor = itertools.product(el_self, repeat=n)
-        
+        # create according to symmetry
+        if symmetry == 'x':
+            el_tensor = itertools.product(el_self, repeat=n)
+        elif symmetry == 'a':
+            el_tensor = itertools.combinations(el_self, n)
+        elif symmetry == 's':
+            el_tensor = itertools.combinations_with_replacement(el_self, n)
+            
         # if not nested, flatten elements
         if symmetry == self.symmetry:
             el_tensor = [tuple(itertools.chain.from_iterable(e)) for e in el_tensor]
             
         # add symmetry marker and sort out wrong elements for 's' and 'a'
-        el_final = []
-        for e in el_tensor:
-            # check symmetry
-            inc = True # include this element
-            if symmetry in ['s', 'a']:
-                pos = 0
-                for e_part in out_basis.part_basis.el: # must be in that order
-                    if symmetry == 's':
-                        while pos < out_basis.part_num and e[pos] == e_part: # can have multiple e_part
-                            pos += 1
-                        if pos == out_basis.part_num:
-                            break
-                    elif symmetry == 'a':
-                        if e[pos] == e_part: # only single e_part
-                            pos += 1
-                        if pos == out_basis.part_num:
-                            break
-                inc = (pos == out_basis.part_num) # all found in right order
-            if inc: # include this element?
-                # add symmetry marker
-                el_final.append( (symmetry,) + e )
+        el_final = [(symmetry,) + e for e in el_tensor]
         
         out_basis.dim = len(el_final)
         out_basis.el = el_final
@@ -736,7 +802,7 @@ class Vector:
         X.col = self.col.copy()
         return X
 
-    def _test_basis(self, X): # private method for basis comparison / use name as 'forward reference'
+    def _test_basis(self, X: 'Vector'): # private method for basis comparison / use name as 'forward reference'
         """
         Private method to check if the basis of two vectors match.
 
@@ -749,7 +815,7 @@ class Vector:
         if self.basis != X.basis:
             raise TypeError('The bases do not match between the vectors.')
 
-    def __neg__(self):
+    def __neg__(self) -> 'Vector':
         """
         Negates the current vector.
 
@@ -760,7 +826,7 @@ class Vector:
         X.col = -X.col
         return X
               
-    def __add__(self, X):
+    def __add__(self, X: 'Vector') -> 'Vector':
         """
         Adds another vector to the current vector.
 
@@ -773,17 +839,16 @@ class Vector:
         Raises:
             TypeError: If the addition is not valid.
         """
-        Y = Vector(self.basis)
-        if isinstance(X, Vector):
-            # must have same basis and size
-            self._test_basis(X)
-            Y.col = np.add(self.col, X.col)         
-        else:
+        # must have same basis and size
+        if not isinstance(X, Vector):
             raise TypeError('Type error in addition.')
+        self._test_basis(X)
         
-        return X
+        Y = Vector(self.basis) 
+        Y.col = np.add(self.col, X.col)         
+        return Y
     
-    def __sub__(self, X):
+    def __sub__(self, X: 'Vector') -> 'Vector':
         """
         Subtracts another vector from the current vector.
 
@@ -795,12 +860,12 @@ class Vector:
         """ 
         return self.__add__(-X)
 
-    def __mul__(self, a):
+    def __mul__(self, a: Number) -> 'Vector':
         """
         Multiplies the vector by a scalar value.
 
         Parameters:
-            a (numbers.Number): The scalar value to multiply the vector by.
+            a (Number): The scalar value to multiply the vector by.
 
         Returns:
             Vector: The result of multiplying the vector by the scalar.
@@ -809,18 +874,18 @@ class Vector:
             TypeError: If the input is not a scalar value.
         """        
         # mul operator, return new object X = self * a
-        if not isinstance(a, numbers.Number):
+        if not isinstance(a, Number):
             raise TypeError('Type error in multiplication.')        
         X = Vector(self.basis)
         X.col = a*self.col
         return X
     
-    def __rmul__(self, a):
+    def __rmul__(self, a: Number) -> 'Vector':
         """
         Right multiplication of the vector by a scalar value (commutative).
 
         Parameters:
-            a (numbers.Number): The scalar value to multiply the vector by.
+            a (Number): The scalar value to multiply the vector by.
 
         Returns:
             Vector: The result of multiplying the vector by the scalar.
@@ -830,12 +895,12 @@ class Vector:
         # Operator * Vector in handled in Operator class
         return self.__mul__(a)
     
-    def __truediv__(self, a):
-        if not isinstance(a, numbers.Number):
+    def __truediv__(self, a: Number) -> 'Vector':
+        if not isinstance(a, Number):
             raise TypeError('Number type expected in division.')
         return self.__mul__(1/a)
     
-    def inner(self, X) -> complex:
+    def inner(self, X: 'Vector') -> complex:
         """
         Computes the inner product of the current vector with another vector.
 
@@ -902,7 +967,75 @@ class Vector:
         for index,e in enumerate(subbasis.el):
             prob[index] = self.basis.hop(e).expval(self, transform_real=True)
         return prob
+    
+    def tensor(self, X: 'Vector', tensor_basis: Basis = None) -> 'Vector':
+        """
+        Computes the tensor product with another vector.
 
+        Parameters:
+            X (Vector): The vector to tensor with.
+            tensor_basis (Basis, optional): The basis to use for the tensor product.
+                If omitted, a standard tensor product is computed and the corresponding basis is created.
+                If provided, the symmetry of a given 2-particle basis is respected in the tensor product. 
+
+        Returns:
+            Vector: The resulting vector as a tensor product.
+
+        Raises:
+            TypeError: If the first argument is not of type Vector or the second argument is not of type Basis.
+            ValueError: If the tensor_basis or vector bases do not have the correct shape.
+        """
+        if not isinstance(X, Vector):
+            raise TypeError('Type error in vector.')
+        
+        if tensor_basis is None:
+            tensor_basis = self.basis.tensor(X.basis)
+        elif not isinstance(tensor_basis, Basis):
+            raise TypeError('Second (optional) argument must be of type Basis.')
+        elif tensor_basis.symmetry is not None and tensor_basis.part_num != 2:
+            raise ValueError('If tensor_basis is provided, it must be a 2-particle basis.')
+        elif tensor_basis.symmetry in ['a', 's'] and self.basis.dim != X.basis.dim:
+            raise ValueError('For a symmetric or antisymmetric tensor product the dimensions of the two vectors must agree.')
+        
+        # create tuple list (i,j) according to symmetry
+        if tensor_basis.symmetry in [None, 'x']:
+            index_tuples = itertools.product(range(self.basis.dim), range(X.basis.dim))
+        elif tensor_basis.symmetry == 'a':
+            index_tuples = itertools.combinations(range(self.basis.dim), 2)
+        elif tensor_basis.symmetry == 's':
+            index_tuples = itertools.combinations_with_replacement(range(self.basis.dim), 2)
+            
+        # test size of provided basis
+        if tensor_basis is None and tensor_basis.dim != len(index_tuples):
+            raise ValueError('If tensor_basis is provided, it must be of the correct dimension.')
+            
+        out_vec = Vector(tensor_basis)
+        i = 0
+        for t in index_tuples:
+            if tensor_basis.symmetry in [None, 'x']:
+                out_vec.col[i] = self.col[t[0]] * X.col[t[1]]
+            elif tensor_basis.symmetry == 'a':
+                out_vec.col[i] = self.col[t[0]] * X.col[t[1]] - self.col[t[1]] * X.col[t[0]]
+            elif tensor_basis.symmetry == 's':
+                out_vec.col[i] = self.col[t[0]] * X.col[t[1]] + self.col[t[1]] * X.col[t[0]]
+            i += 1
+
+        return out_vec
+
+    def proj(self) -> 'Operator':
+        """
+        Returns an operator that is the projector on the given vector.
+        The vector is always normalized in the procedure.
+
+        Returns:
+            str: Operator object.
+        """
+        
+        P = Operator(self.basis)
+        col = self.col / self.norm() # coefficient column
+        P.matrix = np.outer(col.conj(), col)
+        return P
+    
     def __str__(self) -> str:
         """
         Provides a string representation of the vector.
@@ -957,7 +1090,7 @@ class Operator:
         A.matrix = self.matrix.copy()
         return A
 
-    def _test_basis(self, A): # private method for basis comparison / use name as 'forward reference'
+    def _test_basis(self, A: 'Operator'): # private method for basis comparison / use name as 'forward reference'
         """
         Checks if the basis of the current operator matches the basis of another operator.
 
@@ -970,7 +1103,7 @@ class Operator:
         if self.basis != A.basis:
             raise TypeError('The bases do not match between the operators.')
     
-    def __neg__(self):
+    def __neg__(self) -> 'Operator':
         """
         Negates the current operator.
 
@@ -981,12 +1114,12 @@ class Operator:
         B.matrix = -B.matrix
         return B
               
-    def __add__(self, A):
+    def __add__(self, A: Union['Operator', Number]) -> 'Operator':
         """
         Adds another operator or a scalar to the current operator.
 
         Parameters:
-            A (Operator or numbers.Number): The operator or scalar to add.
+            A (Operator or Number): The operator or scalar to add.
 
         Returns:
             Operator: A new operator representing the sum.
@@ -999,55 +1132,55 @@ class Operator:
             # must have same basis and size
             self._test_basis(A)
             B.matrix = np.add(self.matrix, A.matrix)         
-        elif isinstance(A, numbers.Number):
+        elif isinstance(A, Number):
             B.matrix = self.matrix + A*np.identity(self.basis.dim, dtype=np.complex128)
         else:
             raise TypeError('Type error in addition.')
         
         return B
     
-    def __radd__(self, A):
+    def __radd__(self, A: 'Operator') -> 'Operator':
         """
         Right-side addition, allowing scalar or operator addition to be commutative.
 
         Parameters:
-            A (Operator or numbers.Number): The operator or scalar to add.
+            A (Operator or Number): The operator or scalar to add.
 
         Returns:
             Operator: A new operator representing the sum.
         """   
         return self.__add__(A) # is commutative
     
-    def __sub__(self, A):
+    def __sub__(self, A: 'Operator') -> 'Operator':
         """
         Subtracts another operator or scalar from the current operator.
 
         Parameters:
-            A (Operator or numbers.Number): The operator or scalar to subtract.
+            A (Operator or Number): The operator or scalar to subtract.
 
         Returns:
             Operator: A new operator representing the difference.
         """ 
         return self.__add__(-A)
     
-    def __rsub__(self, A):
+    def __rsub__(self, A: 'Operator') -> 'Operator':
         """
         Right-side subtraction, allowing scalar or operator subtraction to be commutative.
 
         Parameters:
-            A (Operator or numbers.Number): The operator or scalar to subtract from.
+            A (Operator or Number): The operator or scalar to subtract from.
 
         Returns:
             Operator: A new operator representing the difference.
         """   
         return -self.__sub__(A)
         
-    def __mul__(self, A):
+    def __mul__(self, A: 'Operator') -> 'Operator':
         """
         Multiplies the current operator by another operator, vector, scalar, or a list of scalars.
 
         Parameters:
-            A (Operator, Vector, numbers.Number, or list): The entity to multiply with.
+            A (Operator, Vector, Number, or list): The entity to multiply with.
 
         Returns:
             Operator, Vector, or OperatorList: The result of the multiplication.
@@ -1065,14 +1198,14 @@ class Operator:
             self._test_basis(A)
             B = Vector(self.basis)
             B.col = np.dot(self.matrix, A.col)
-        elif isinstance(A, numbers.Number):
+        elif isinstance(A, Number):
             B = Operator(self.basis)
             B.matrix = A*self.matrix
         elif isinstance(A, list):
             # return OperatorList
             B_vec = OperatorList(self.basis)
             for a in A:
-                if isinstance(a, numbers.Number):
+                if isinstance(a, Number):
                     B_vec.operators.append(self * a)
                 else:
                     raise TypeError('Type error in multiplication with a list.')
@@ -1082,12 +1215,12 @@ class Operator:
 
         return B        
     
-    def __rmul__(self, A):
+    def __rmul__(self, A: 'Operator') -> 'Operator':
         """
         Right-side multiplication, allowing scalar or operator multiplication.
 
         Parameters:
-            A (Operator or numbers.Number): The operator or scalar to multiply with.
+            A (Operator or Number): The operator or scalar to multiply with.
 
         Returns:
             Operator: The result of the multiplication.
@@ -1102,12 +1235,12 @@ class Operator:
 
         return B  
         
-    def __truediv__(self, a):
+    def __truediv__(self, a: Number) -> 'Operator':
         """
         Divides the operator by a scalar.
 
         Parameters:
-            a (numbers.Number): The scalar to divide by.
+            a (Number): The scalar to divide by.
 
         Returns:
             Operator: The resulting operator after division.
@@ -1115,13 +1248,13 @@ class Operator:
         Raises:
             TypeError: If the input is not a scalar.
         """
-        if not isinstance(a, numbers.Number):
+        if not isinstance(a, Number):
             raise TypeError('Number type expected in division.')
         B = Operator(self.basis)
         B.matrix = self.matrix/a
         return B
         
-    def __pow__(self, a):
+    def __pow__(self, a: int) -> 'Operator':
         """
         Raises the operator to the power of an integer.
 
@@ -1222,7 +1355,7 @@ class Operator:
         else:
             raise TypeError('Type error in anticommutator.')
     
-    def expval(self, vec: Vector, check_real: bool = False, transform_real: bool = False) -> float|complex:
+    def expval(self, vec: Vector, check_real: bool = False, transform_real: bool = False) -> Number:
         """
         Calculates the expectation value of the operator with respect to a given vector.
 
@@ -1258,6 +1391,15 @@ class Operator:
             float: The 2-norm of the operator.
         """
         return np.linalg.norm(self.matrix, ord=2)
+    
+    def trace(self) -> complex: # trace of operator
+        """
+        Calculates the trace of the operator.
+
+        Returns:
+            complex: The trace of the operator.
+        """
+        return np.trace(self.matrix)
     
     def eig(self, hermitian: bool = False) -> dict:
         """
@@ -1368,6 +1510,8 @@ class Operator:
             tensor_basis = self.basis.tensor(A.basis)
         elif not isinstance(tensor_basis, Basis):
             raise TypeError('Second (optional) argument must be of type Basis.')
+        elif tensor_basis.symmetry in ['a', 's']:
+            raise ValueError('The provided basis cannot be of (anti)symmetric type.') # A x B not possible on (anti)symmetric spaces
         elif self.basis.dim * A.basis.dim != tensor_basis.dim:
             raise ValueError('The dimension of the provided basis does not fit the bases of the operators in the tensor product.')
             
@@ -1384,7 +1528,7 @@ class Operator:
         else:
             raise TypeError('Type error in tensor.')
         
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Returns a string representation of the operator.
         """
@@ -1392,7 +1536,7 @@ class Operator:
         # and just show matrix
         return out + str(self.matrix)
     
-    def __len__(self):
+    def __len__(self) -> int:
         """
         Returns the number of operators, which is always 1 for this class.
         """
@@ -1483,7 +1627,7 @@ class OperatorList: # list of operators
             A.append(op.copy())
         return A
     
-    def __neg__(self):
+    def __neg__(self) -> 'OperatorList':
         """
         Negates all operators in the OperatorList.
 
@@ -1495,12 +1639,12 @@ class OperatorList: # list of operators
             B.append(-op) # makes copy
         return B
                     
-    def __add__(self, A):
+    def __add__(self, A: Union['Operator', 'OperatorList']) -> 'OperatorList':
         """
         Adds two OperatorLists or adds a scalar to all operators in the list.
 
         Parameters:
-            A (OperatorList or numbers.Number): The OperatorList or scalar to add.
+            A (OperatorList or Number): The OperatorList or scalar to add.
 
         Returns:
             OperatorList: A new OperatorList that is the sum of the current and added objects.
@@ -1516,7 +1660,7 @@ class OperatorList: # list of operators
                 raise ValueError('Operator vector dimensions do not agree.')
             for i,op in enumerate(self.operators):
                 B.append(op + A.operators[i])
-        elif isinstance(A, numbers.Number):
+        elif isinstance(A, Number):
             for op in self.operators:
                 B.append(op + A)
         else:
@@ -1529,12 +1673,12 @@ class OperatorList: # list of operators
     #def __sub__(self, A)
     #def __rsub__(self, A)
         
-    def __mul__(self, A):
+    def __mul__(self, A: Union[list, np.ndarray, Number, 'OperatorList']) -> 'OperatorList':
         """
         Multiplies the OperatorList element-wise by another list, scalar, or OperatorList.
 
         Parameters:
-            A (list, np.ndarray, OperatorList, or numbers.Number): The object to multiply with.
+            A (list, np.ndarray, OperatorList, or Number): The object to multiply with.
 
         Returns:
             Operator or OperatorList: The result of the multiplication.
@@ -1552,7 +1696,7 @@ class OperatorList: # list of operators
                 B = B + op * A[i]
         elif isinstance(A, OperatorList): # inner product
             B = self.__mul__(A.operators) # call with list
-        elif isinstance(A, numbers.Number):
+        elif isinstance(A, Number):
             B = OperatorList(self.basis)
             for op in self.operators:
                 B.append(op * A)
@@ -1562,24 +1706,24 @@ class OperatorList: # list of operators
         return B
     
     __array_priority__ = 10000 # use __rmul__ instead of NumPy's __mul__
-    def __rmul__(self, A):
+    def __rmul__(self, A: Union[list, np.ndarray, Number, 'OperatorList']) -> 'OperatorList':
         """
-        Right multiplication, allows multiplication of scalar or list with OperatorList.
+        Right multiplication, multiplies the OperatorList element-wise by another list, scalar, or OperatorList.
 
         Parameters:
-            A (list, np.ndarray, or numbers.Number): The object to multiply with.
+            A (list, np.ndarray, OperatorList, or Number): The object to multiply with.
 
         Returns:
             Operator or OperatorList: The result of the right multiplication.
         """
         return self.__mul__(A) # is commutative
         
-    def __truediv__(self, a):
+    def __truediv__(self, a: Number) -> 'OperatorList':
         """
         Divides all operators in the list by a scalar.
 
         Parameters:
-            a (numbers.Number): The scalar to divide by.
+            a (Number): The scalar to divide by.
 
         Returns:
             OperatorList: A new OperatorList with operators divided by the scalar.
@@ -1622,7 +1766,7 @@ class OperatorList: # list of operators
             B.append(op.adj())
         return B
     
-    def expval(self, vec: Vector, check_real = False, transform_real = False) -> float|complex:
+    def expval(self, vec: Vector, check_real = False, transform_real = False) -> Number:
         """
         Returns the expectation value of each operator with respect to a vector.
 
@@ -1758,7 +1902,7 @@ class OperatorList: # list of operators
         else:
             raise TypeError('Type error in tensor.')
         
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Returns a string representation of the OperatorList.
 
@@ -1770,7 +1914,7 @@ class OperatorList: # list of operators
             s = s + str(i) + ':\n' + op.__str__() + '\n'
         return s
     
-    def __len__(self):
+    def __len__(self) -> int:
         """
         Returns the number of operators in the list.
 
