@@ -39,7 +39,7 @@ class ConstraintOptimization:
     CONSTRAINT_ACCURACY = 1e-3 # on mu(Psi) = b constraint
     DELTA_TAU = 0.0005 # if too large constraints cannot be kept
     MIN_ITER_MAIN = 100 # min iterations in time (need some phase flips to reach gs); choose higher value together with RANDOM_PHASE_CHANCE if glitches from excited states appear
-    MAX_ITER_MAIN = 20000 # max iterations in time
+    MAX_ITER_MAIN = 50000 # max iterations in time
     MAX_ITER_SC = 200 # max iterations in self-consistent loop to determine beta at delta_tau/2, usually just a few needed
     RANDOM_PHASE_CHANCE = 1 # 1/this value is probability for random phase change, set to 0 for never; choose 1 or low if glitches from excited states appear; value=1 can even speed up convergence
 
@@ -111,7 +111,6 @@ class ConstraintOptimization:
         return np.inner(Psi.conj(), self.A_trans @ Psi).real
     
     def run(self, b: list, random_jump_method = 'phase', random_initial_method = None):
-        global flip_index
         # inf expval(A) under constraints expval(B) = b where B0 = id and b0 = 1 is added
         # by performing imaginary-time evolution with potential that guarantees constraint 
         # random_jump_method can be 'phase', 'sign' and None
@@ -135,7 +134,7 @@ class ConstraintOptimization:
             raise ValueError('The given constraints are not N-representable.')
         elif linprog_res['status']>0:
             raise ValueError('scipy.optimize.linprog error code {:d}'.format(linprog_res['status']))
-        Psi = np.sqrt(linprog_res['x']) # coeffcients in basis that makes all B diagonal, this basis will be further used
+        Psi = np.sqrt(np.abs(linprog_res['x'])) # coefficients in basis that makes all B diagonal, this basis will be further used, force positivity (small negative possible)
         if random_initial_method is not None: Psi = random_phase(Psi, random_initial_method)
         
         # test constraints
@@ -168,7 +167,6 @@ class ConstraintOptimization:
                 if iter_sc>=1 and np.linalg.norm(Psi_sc - Psi_sc_prev) < self.IMPLICIT_CONVERGENCE_ACCURACY:
                     #print("Implicit half-step method converged after %d steps." % iter_sc)
                     sc_converged = True
-                    print(iter_sc)
                     break
                 
             if not sc_converged:
@@ -218,3 +216,4 @@ class ConstraintOptimization:
                 'beta': beta,
                 'count_random_jump': count_random_jump,
                 'A_record': A_record} 
+    

@@ -22,10 +22,10 @@ N = 2 # number of particles, <= m
 m = 4
 edges = {(1, 2), (2, 3), (3, 4), (4, 1)}
 # random graph
-#nxG = nx.gnp_random_graph(m, 0.5, 123)
-#edges = set()
-#for e in nxG.edges:
-#    edges.add((e[0]+1,e[1]+1)) # nx edges start numbering at 0, not 1 as required here
+# nxG = nx.gnp_random_graph(m, 0.5, 123)
+# edges = set()
+# for e in nxG.edges:
+#     edges.add((e[0]+1,e[1]+1)) # nx edges start numbering at 0, not 1 as required here
 
 basis_onepart = LatticeBasis(m)
 basis = basis_onepart.wedge(N)
@@ -123,7 +123,7 @@ def single_inverse_runs(runs=5, random_jump_method='phase', random_initial_metho
             xlim=xlim, ylim=ylim,
             xticklabels=[], yticklabels=[])
         inset_indicator = ax.indicate_inset_zoom(axins, edgecolor="black", linewidth=1)
-        
+    
         if degen:
             # indicator lines for example w/ degeneracy
             inset_indicator.connectors[0].set_visible(False)
@@ -151,7 +151,6 @@ def single_inverse_runs(runs=5, random_jump_method='phase', random_initial_metho
         ax.plot(res['A_record'][0:co.MIN_ITER_MAIN])
         if random_jump_method=='phase' and random_initial_method is None:
             axins.plot(res['A_record'][0:co.MIN_ITER_MAIN]) # plot into inset
-
 
 # multiple runs with different parameters
 # this creates the convergence plots for the paper
