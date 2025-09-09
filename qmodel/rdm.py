@@ -45,7 +45,7 @@ def entropy_ph(non: list): # particle-hole entropy
     return S
 
 def entropy_fermions(Psi: Vector):
-    return entropy_ph(np.linalg.eigh(rdm1(Psi)).eigenvalues) # natural orbitals occupation numbers
+    return entropy_ph(np.linalg.eigvalsh(rdm1(Psi))) # natural orbitals occupation numbers
 
 def natural(Psi: Vector):
     res = np.linalg.eigh(rdm1(Psi))
